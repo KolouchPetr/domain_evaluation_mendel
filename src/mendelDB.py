@@ -1,57 +1,10 @@
-#def get_connection_string(ident='DBConnDB'):
-#    ret = None
-#    f = open('/etc/ti.conf', "r")
-#    for line in f:
-#        if ident + '=' in line:
-#            ret = line.split(ident + '=')[1]
-#    f.close()
-#    ret = ret.strip()
-#    if not 'postgresql://' in ret:
-#        cmd = 'TPTIAC=key aesCrypt "' + ret.replace('$', '\\$') + '"'
-#        from subprocess import Popen, PIPE, STDOUT
-#        p = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE, stderr=STDOUT, close_fds=True)
-#        ret = p.stdout.read().strip()
-#    return ret
-#
-#def run_query(query):
-#    query = query.replace("'", "'\\''")
-#    cmd = 'psql --no-password -P tuples_only=on -P format=unaligned -v "ON_ERROR_STOP=1" "%s" -c \'%s\' 2>&1' % (get_connection_string(), query)
-#    from subprocess import Popen, PIPE, STDOUT
-#    p = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE, stderr=STDOUT, close_fds=True)
-#    return p.stdout.read().strip()
-#
-#flows = run_query("SELECT * from nb.flows01 where service='HTTP' LIMIT 100;")
-#print(flows)
+import psycopg2
 
-
-#Python3 equivalent:
-
-def get_connection_string(ident='DBConnDB'):
-    ret = None
-    with open('/etc/ti.conf', "r") as f:
-        for line in f:
-            if ident + '=' in line:
-                ret = line.split(ident + '=')[1]
-    ret = ret.strip()
-    if not 'postgresql://' in ret:
-        cmd = 'TPTIAC=key aesCrypt "{}"'.format(ret.replace('$', '\\$'))
-        from subprocess import Popen, PIPE, STDOUT
-        p = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE, stderr=STDOUT, close_fds=True)
-        ret = p.stdout.read().strip().decode()
-    return ret
-
-def run_query(query):
-    #query = query.replace("'", "'\\''")
-    cmd = 'psql --no-password -P tuples_only=on -P format=unaligned -v "ON_ERROR_STOP=1" "{}" -c "{}" 2>&1'.format(get_connection_string(), query)
-    from subprocess import Popen, PIPE, STDOUT
-    p = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE, stderr=STDOUT, close_fds=True)
-    return p.stdout.read().strip().decode()
-
-flows = run_query("SELECT * from nb.flows01 where service='HTTP' LIMIT 100;")
-print(flows)
-
-
-
+ip = ""
+HTTP_QUERY = "SELECT timestamp, src_ip_addr, dst_ip_addr, dst_domains, src_app_json, dst_app_json FROM nb.flows01 WHERE service='HTTP' LIMIT 100;"
+HTTPS_QUERY = "SELECT timestamp, src_ip_addr, dst_ip_addr, dst_domains, src_app_json, dst_app_json FROM nb.flows01 WHERE service='HTTPS' LIMIT 100;"
+DNS_QUERY = "SELECT src_app_json, dst_app_json FROM nb.flows01 WHERE service='DNS' LIMIT 100;"
+GEOIP_QUERY = "SELECT country_code, latitude, longitude FROM ti.geoip_asn WHERE ip_addr={0}".format(ip)
 
 #TODO rewrite this bash function to python
 
@@ -161,3 +114,39 @@ def prepare_sm_event_query(timestamp, sensor, sid, src_ip, src_mac, dst_port, de
 #         return 0
 #     fi
 #}
+
+def get_connection_string(ident='DBConnDB'):
+    ret = None
+    with open('/etc/ti.conf', "r") as f:
+        for line in f:
+            if ident + '=' in line:
+                ret = line.split(ident + '=')[1]
+    ret = ret.strip()
+    if not 'postgresql://' in ret:
+        cmd = 'TPTIAC=key aesCrypt "{}"'.format(ret.replace('$', '\\$'))
+        from subprocess import Popen, PIPE, STDOUT
+        p = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE, stderr=STDOUT, close_fds=True)
+        ret = p.stdout.read().strip().decode()
+    return ret
+
+
+def main():
+    connectionString = get_connection_string()
+    conn = psycopg2.connect(connectionString)
+
+    cur = conn.cursor()
+
+
+
+
+    cur.execute("SELECT * from nb.flows01 where service='HTTP' LIMIT 100;")
+    result = cur.fetchall()
+
+    for row in result:
+        print(row)
+
+    cur.close()
+    conn.close()
+
+if __name__ == "__main__":
+    main()
