@@ -1,9 +1,9 @@
 import psycopg2
 
 ip = ""
-HTTP_QUERY = "SELECT timestamp, src_ip_addr, dst_ip_addr, dst_domains, src_app_json, dst_app_json FROM nb.flows01 WHERE service='HTTP' LIMIT 100;"
-HTTPS_QUERY = "SELECT timestamp, src_ip_addr, dst_ip_addr, dst_domains, src_app_json, dst_app_json FROM nb.flows01 WHERE service='HTTPS' LIMIT 100;"
-DNS_QUERY = "SELECT src_app_json, dst_app_json FROM nb.flows01 WHERE service='DNS' LIMIT 100;"
+HTTP_QUERY = "SELECT timestamp, src_ip_addr, dst_ip_addr, dst_domains FROM nb.flows01 WHERE service='HTTP' LIMIT 100;"
+HTTPS_QUERY = "SELECT timestamp, src_ip_addr, dst_ip_addr, dst_domains, dst_json->'Valid from', dst_json->'Valid until', dst_json->'issuerdn' FROM nb.flows01, unnest(dst_app_json) AS dst_json WHERE service='HTTPS' LIMIT 100;"
+DNS_QUERY = "SELECT src_json->'questions', dst_json->'answers' FROM nb.flows01, unnest(src_app_json) AS src_json, unnest(dst_app_json) AS dst_json WHERE service='DNS' LIMIT 100;"
 GEOIP_QUERY = "SELECT country_code, latitude, longitude FROM ti.geoip_asn WHERE ip_addr={0}".format(ip)
 
 #TODO rewrite this bash function to python
@@ -139,7 +139,7 @@ def main():
 
 
 
-    cur.execute("SELECT * from nb.flows01 where service='HTTP' LIMIT 100;")
+    #cur.execute("SELECT * from nb.flows01 where service='HTTP' LIMIT 100;")
     result = cur.fetchall()
 
     for row in result:
