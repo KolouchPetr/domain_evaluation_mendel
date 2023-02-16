@@ -180,10 +180,13 @@ class Base_parser:
         return self.whois_data
 
     def load_whois_data(self):
+        print("[Info]: LOADING WHOIS DATA\n")
         whois_record = {}
         try:
             types = ['registrar', 'creation_date', 'expiration_date', 'dnssec', 'emails']
             w = whois.whois(self.hostname)
+            print("[INFO] w from whois is: \n")
+            print(w)
             i = 0
             for type in types:
                 try:
@@ -193,10 +196,12 @@ class Base_parser:
 
                 i=i+1
             self.whois_data = whois_record
+            print("whois data\n")
+            print(whois_record)
             return True
 
         except Exception as e:
-            #print("[Info]: Resolver can load all whois data")
+            print("[Info]: Resolver can't load all whois data")
             return False
 
     def load_dns_data(self):
@@ -218,10 +223,14 @@ class Base_parser:
             #print(type + " " + self.hostname + " --> " + str(result[0]))
             #input()
             if type == 'A':
+                print("ip")
+                print(result[0])
                 self.ip = result[0]
+            print("DNS type " + type +" " + str(result[0]))
             dns_records[types[i]] = str(result[0])
             i=i+1
-
+        print("DNS records:")
+        print(dns_records)
         self.dns = dns_records
 
     def load_geo_info(self, ip=None):
@@ -253,9 +262,13 @@ class Base_parser:
                 geo_data[keys[i]] = None
 
         self.geo_data = geo_data
+        print("geo data:")
+        print(geo_data)
 
     def load_ssl_data(self):
         self.ssl_data = SSL_loader.discover_ssl(self.hostname, self.timeout)
+        print("ssl data:")
+        print(self.ssl_data)
 
     def ip_from_host(self):
         hostname = self.hostname

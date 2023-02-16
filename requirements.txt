@@ -1,6 +1,6 @@
-numpy==1.20.0
+numpy==1.22.0
 argparse
-whois
+python-whois
 futures
 dnspython
 requests
