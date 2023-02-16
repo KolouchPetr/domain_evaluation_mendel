@@ -11,4 +11,5 @@ torch
 python-dotenv
 pyOpenSSL
 sklearn
+psycopg2
 git+https://github.com/rthalley/dnspython
