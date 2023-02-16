@@ -180,13 +180,13 @@ class Base_parser:
         return self.whois_data
 
     def load_whois_data(self):
-        print("[Info]: LOADING WHOIS DATA\n")
+        #print("[Info]: LOADING WHOIS DATA\n")
         whois_record = {}
         try:
             types = ['registrar', 'creation_date', 'expiration_date', 'dnssec', 'emails']
             w = whois.whois(self.hostname)
-            print("[INFO] w from whois is: \n")
-            print(w)
+            #print("[INFO] w from whois is: \n")
+            #print(w)
             i = 0
             for type in types:
                 try:
@@ -196,8 +196,8 @@ class Base_parser:
 
                 i=i+1
             self.whois_data = whois_record
-            print("whois data\n")
-            print(whois_record)
+            #print("whois data\n")
+            #print(whois_record)
             return True
 
         except Exception as e:
