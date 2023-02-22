@@ -84,99 +84,100 @@ def prepare_sm_event_query(timestamp, sensor, sid, src_ip, src_mac, dst_port, de
 
 
 #function report_adt_event()
-#def load_whois_data(self):
-#        #print("[Info]: LOADING WHOIS DATA\n")
-#        whois_record = {}
-#        try:
-#            types = ['registrar', 'creation_date', 'expiration_date', 'dnssec', 'emails']
-#            w = whois.whois(self.hostname)
-#            #print("[INFO] w from whois is: \n")
-#            #print(w)
+
+#    def load_whois_data(self):
+#            #print("[Info]: LOADING WHOIS DATA\n")
+#            whois_record = {}
+#            try:
+#                types = ['registrar', 'creation_date', 'expiration_date', 'dnssec', 'emails']
+#                w = whois.whois(self.hostname)
+#                #print("[INFO] w from whois is: \n")
+#                #print(w)
+#                i = 0
+#                for type in types:
+#                    try:
+#                        whois_record[types[i]] = w[types[i]]
+#                    except:
+#                        whois_record[types[i]] = None
+#
+#                    i=i+1
+#                self.whois_data = whois_record
+#                #print("whois data\n")
+#                #print(whois_record)
+#                return True
+#
+#
+#    def load_dns_data(self, result):
+#        if(result = None):
+#            self.dns = None
+#            return
+#            #print("Loading DNS data")
+#            types = ['A', 'AAAA', 'CNAME', 'SOA', 'NS', 'MX', 'TXT']
+#            #types = ['TXT']
+#            dns_records = {}
 #            i = 0
 #            for type in types:
-#                try:
-#                    whois_record[types[i]] = w[types[i]]
-#                except:
-#                    whois_record[types[i]] = None
+#                    dns_records[types[i]] = result[types[i]]
+#                    i=i+1
 #
+#                #print(type + " " + self.hostname + " --> " + str(result[0]))
+#                #input()
+#                if type == 'A':
+#                    self.ip = result[0]
+#                print("DNS type " + type +" " + str(result[0]))
+#                dns_records[types[i]] = str(result[0])
 #                i=i+1
-#            self.whois_data = whois_record
-#            #print("whois data\n")
-#            #print(whois_record)
-#            return True
+#            self.dns = dns_records
 #
+#        def load_geo_info(self, ip, result):
+#            #print("Loading Geo info data")
+#            
+#            geo_data = {}
+#            keys = ['country', 'region' ,'city' ,'loc' ,'org']
+#            for i in range(len(keys)):
+#                geo_data[keys[i]] = result[keys[i]]
 #
-#def load_dns_data(self, result):
-#    if(result = None):
-#        self.dns = None
-#        return
-#        #print("Loading DNS data")
-#        types = ['A', 'AAAA', 'CNAME', 'SOA', 'NS', 'MX', 'TXT']
-#        #types = ['TXT']
-#        dns_records = {}
-#        i = 0
-#        for type in types:
-#                dns_records[types[i]] = result[types[i]]
+#            self.geo_data = geo_data
+#            print("geo data:")
+#            print(geo_data)
+#
+#        def load_ssl_data(self, result):
+#            ssl_data = {'is_ssl': result['is_ssl'],
+#                        'ssl_data': {
+#                            'issuer': result['issuer'],
+#                            'end_date': datetime.datetime(result['end_date']),
+#                            'start_date': datetime.datetime(result['start_date'])
+#                            }
+#            print("ssl data:")
+#            print(self.ssl_data)
+#                if type == 'A':
+#                    self.ip = result[0]
+#                print("DNS type " + type +" " + str(result[0]))
+#                dns_records[types[i]] = str(result[0])
 #                i=i+1
+#            self.dns = dns_records
 #
-#            #print(type + " " + self.hostname + " --> " + str(result[0]))
-#            #input()
-#            if type == 'A':
-#                self.ip = result[0]
-#            print("DNS type " + type +" " + str(result[0]))
-#            dns_records[types[i]] = str(result[0])
-#            i=i+1
-#        self.dns = dns_records
+#        def load_geo_info(self, ip, result):
+#            #print("Loading Geo info data")
+#            
+#            geo_data = {}
+#            keys = ['country', 'region' ,'city' ,'loc' ,'org']
+#            for i in range(len(keys)):
+#                geo_data[keys[i]] = result[keys[i]]
 #
-#    def load_geo_info(self, ip, result):
-#        #print("Loading Geo info data")
-#        
-#        geo_data = {}
-#        keys = ['country', 'region' ,'city' ,'loc' ,'org']
-#        for i in range(len(keys)):
-#            geo_data[keys[i]] = result[keys[i]]
+#            self.geo_data = geo_data
+#            print("geo data:")
+#            print(geo_data)
 #
-#        self.geo_data = geo_data
-#        print("geo data:")
-#        print(geo_data)
-#
-#    def load_ssl_data(self, result):
-#        ssl_data = {'is_ssl': result['is_ssl'],
-#                    'ssl_data': {
-#                        'issuer': result['issuer'],
-#                        'end_date': datetime.datetime(result['end_date']),
-#                        'start_date': datetime.datetime(result['start_date'])
-#                        }
-#        print("ssl data:")
-#        print(self.ssl_data)
-#            if type == 'A':
-#                self.ip = result[0]
-#            print("DNS type " + type +" " + str(result[0]))
-#            dns_records[types[i]] = str(result[0])
-#            i=i+1
-#        self.dns = dns_records
-#
-#    def load_geo_info(self, ip, result):
-#        #print("Loading Geo info data")
-#        
-#        geo_data = {}
-#        keys = ['country', 'region' ,'city' ,'loc' ,'org']
-#        for i in range(len(keys)):
-#            geo_data[keys[i]] = result[keys[i]]
-#
-#        self.geo_data = geo_data
-#        print("geo data:")
-#        print(geo_data)
-#
-#    def load_ssl_data(self, result):
-#        ssl_data = {'is_ssl': result['is_ssl'],
-#                    'ssl_data': {
-#                        'issuer': result['issuer'],
-#                        'end_date': datetime.datetime(result['end_date']),
-#                        'start_date': datetime.datetime(result['start_date'])
-#                        }
-#        print("ssl data:")
-#        print(self.ssl_data)
+#        def load_ssl_data(self, result):
+#            ssl_data = {'is_ssl': result['is_ssl'],
+#                        'ssl_data': {
+#                            'issuer': result['issuer'],
+#                            'end_date': datetime.datetime(result['end_date']),
+#                            'start_date': datetime.datetime(result['start_date'])
+#                            }
+#            print("ssl data:")
+#            print(self.ssl_data)
 
 def get_connection_string(ident='DBConnDB'):
     ret = None
@@ -199,6 +200,12 @@ def writeQueryResultIntoFile(filename, result, type_t):
                         resultCount = len(result)
                         for row in result:
                             if(type_t == "https"):
+                                if(row[6] != None):
+                                    ssl_issuer = row[6].split(', ')
+                                    for substr in ssl_issuer:
+                                        if(substr.startswith("O=")):
+                                            ssl_issuer=substr
+                                            break;
                                 result_dict = {
                                         "timestamp":row[0],
                                         "src_ip_addr":row[1],
@@ -206,7 +213,7 @@ def writeQueryResultIntoFile(filename, result, type_t):
                                         "dst_domains":row[3],
                                         "ssl_valid_from":row[4],
                                         "ssl_valid_until":row[5],
-                                        "ssl_issuer":row[6]
+                                        "ssl_issuer":ssl_issuer
                                 }
                             elif(type_t == "http"):
                                 result_dict = {
