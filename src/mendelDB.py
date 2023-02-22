@@ -217,9 +217,10 @@ def writeQueryResultIntoFile(filename, result, type_t):
                                         }
                             elif(type_t == "geoip"):
                                 result_dict = {
-                                        "country_code":row[0],
-                                        "latitude":row[1],
-                                        "longitude":row[2]
+                                        "ip_addrs":row[0],
+                                        "country_code":row[1],
+                                        "latitude":row[2],
+                                        "longitude":row[3]
                                         }
                             elif(type_t == "dns"):
                                 result_dict = {
@@ -279,16 +280,17 @@ def main():
                     WHERE service='DNS' AND question->>'rrname'='{0}' 
                     LIMIT 100;""".format(domain)
                 GEOIP_QUERY ="""
-                SELECT country_code, latitude, longitude 
-                FROM ti.geoip_asn 
-                WHERE ip_addrs='{0}'
+                SELECT ip_addrs, country_code, latitude, longitude 
+                FROM ti.geoip_asn
+                WHERE '{0}'::inet << ip_addrs
+                LIMIT 10;
                 """.format(ip)
                 cur.execute(GEOIP_QUERY)
                 geoip_result = cur.fetchall()
+                writeQueryResultIntoFile("geoip_result", geoip_result, "geoip")
                 cur.execute(DNS_QUERY)
                 dns_result = cur.fetchall()
-                writeQueryResultIntoFile("geoip_result.txt", geoip_result, "geoip")
-                writeQueryResultIntoFile("dns_result.txt", dns_result, "dns")
+                writeQueryResultIntoFile("dns_result", dns_result, "dns")
             break
                 
 
