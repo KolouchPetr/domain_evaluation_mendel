@@ -1,32 +1,6 @@
 import psycopg2
-
-ip = ""
-domain = ""
-#DNS_QUERY = "SELECT src_json->'questions', dst_json->'answers' FROM nb.flows01, unnest(src_app_json) AS src_json, unnest(dst_app_json) AS dst_json WHERE service='DNS' LIMIT 100;"
-HTTP_QUERY = """
-                SELECT timestamp, src_ip_addr, dst_ip_addr, dst_domains 
-                FROM nb.flows01 
-                WHERE service='HTTP' 
-                LIMIT 100;"""
-
-HTTPS_QUERY = """
-                SELECT timestamp, src_ip_addr, dst_ip_addr, dst_domains, dst_json->'Valid from', dst_json->'Valid until', dst_json->'issuerdn' 
-                FROM nb.flows01, unnest(dst_app_json) AS dst_json 
-                WHERE service='HTTPS' 
-                LIMIT 100;"""
-GEOIP_QUERY = """
-                SELECT country_code, latitude, longitude 
-                FROM ti.geoip_asn 
-                WHERE ip_addr={0}""".format(ip)
-
-DNS_QUERY="""
-                SELECT src_json->'questions', question->>'rrname', dst_json->'answers' 
-                FROM nb.flows01, 
-                     unnest(src_app_json) AS src_json, 
-                     unnest(dst_app_json) AS dst_json, 
-                     jsonb_array_elements(src_json->'questions') AS question 
-                WHERE service='DNS' AND question->>'rrname'='{0}' 
-                LIMIT 100;""".format(domain)
+import datetime
+import json
 
 
 #TODO rewrite this bash function to python
@@ -110,152 +84,99 @@ def prepare_sm_event_query(timestamp, sensor, sid, src_ip, src_mac, dst_port, de
 
 
 #function report_adt_event()
-#{
-#     local connstr="${1}"
-#     local ip_address="${2}"
-#     local event="${3}"
-#     local msg="${4}"
-#     local service="${5}"
+#def load_whois_data(self):
+#        #print("[Info]: LOADING WHOIS DATA\n")
+#        whois_record = {}
+#        try:
+#            types = ['registrar', 'creation_date', 'expiration_date', 'dnssec', 'emails']
+#            w = whois.whois(self.hostname)
+#            #print("[INFO] w from whois is: \n")
+#            #print(w)
+#            i = 0
+#            for type in types:
+#                try:
+#                    whois_record[types[i]] = w[types[i]]
+#                except:
+#                    whois_record[types[i]] = None
 #
-#     local sensor="$(get_local_sensor_name)"
+#                i=i+1
+#            self.whois_data = whois_record
+#            #print("whois data\n")
+#            #print(whois_record)
+#            return True
 #
-#     if [ -z "$event" ]; then
-#         return 1
-#     fi
 #
-#     qry="SELECT mac_addrs[1] FROM ti.hosts WHERE ip_addr =
-#'${ip_address}' LIMIT 1;"
-#     if ! mac="$(psql_select "${connstr}" "${qry}")"; then
-#         mac="00:00:00:00:00:00"
-#     fi
-#     qry="$(prepare_sm_event_query "NOW()" "${sensor}" "-${event}"
-#"${ip_address}" "${mac}" "${service}" "${msg}")"
-#     if ! psql_insert "${connstr}" "${qry}"; then
-#         gcx_log_error "Query '${qry}' failed"
-#         return 1
-#     else
-#         return 0
-#     fi
-#}
-
-
-def load_dns_data(self):
-        #print("Loading DNS data")
-        types = ['A', 'AAAA', 'CNAME', 'SOA', 'NS', 'MX', 'TXT']
-        #types = ['TXT']
-        dns_records = {}
-        i = 0
-        for type in types:
-            result = None;
-            try:
-                result = self.dns_resolver.resolve(self.hostname, type)
-            except Exception as e:
-                #print(type + " is not available for this hostname")
-                dns_records[types[i]] = None
-                i=i+1
-                continue
-
-            #print(type + " " + self.hostname + " --> " + str(result[0]))
-            #input()
-            if type == 'A':
-                self.ip = result[0]
-            print("DNS type " + type +" " + str(result[0]))
-            dns_records[types[i]] = str(result[0])
-            i=i+1
-        self.dns = dns_records
-
-    def load_geo_info(self, ip=None):
-        #print("Loading Geo info data")
-        if ip is None:
-            if self.ip is None:
-                #print("Ip of hostname not discovered, doing it manualy...")
-                try:
-                    self.ip = self.ip_from_host()[self.hostname][0]
-                except:
-                    print("[Info]: Cant resolve hostname to IP")
-                return False
-        else:
-            self.ip = ip
-        
-        geo_data = {}
-        keys = ['country', 'region' ,'city' ,'loc' ,'org']
-        url =  "https://ipinfo.io/" + str(self.ip) + "/?token=" + ip_auth_token
-        raw_json = None
-        try:
-            raw_json = requests.get(url).json()
-        except:
-            self.geo_data = None
-            return
-        for i in range(len(keys)):
-            try:
-                geo_data[keys[i]] = raw_json[keys[i]]
-            except:
-                geo_data[keys[i]] = None
-
-        self.geo_data = geo_data
-        print("geo data:")
-        print(geo_data)
-
-    def load_ssl_data(self):
-        self.ssl_data = SSL_loader.discover_ssl(self.hostname, self.timeout)
-        print("ssl data:")
-        print(self.ssl_data)
-
-    def ip_from_host(self):
-        hostname = self.hostname
-
-        ips = []
-        domainsIps = {}
-
-        try:
-            answer = self.dns_resolver.resolve(hostname)
-
-            for item in answer:
-                ips.append(item.to_text())
-
-            domainsIps[hostname] = ips
-            return domainsIps
-
-        except Exception as e:
-            print(answer)
-            print(ips)
-  
-            print(str(e))
-            domainsIps[hostname] = []
-            return domainsIps
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+#def load_dns_data(self, result):
+#    if(result = None):
+#        self.dns = None
+#        return
+#        #print("Loading DNS data")
+#        types = ['A', 'AAAA', 'CNAME', 'SOA', 'NS', 'MX', 'TXT']
+#        #types = ['TXT']
+#        dns_records = {}
+#        i = 0
+#        for type in types:
+#                dns_records[types[i]] = result[types[i]]
+#                i=i+1
+#
+#            #print(type + " " + self.hostname + " --> " + str(result[0]))
+#            #input()
+#            if type == 'A':
+#                self.ip = result[0]
+#            print("DNS type " + type +" " + str(result[0]))
+#            dns_records[types[i]] = str(result[0])
+#            i=i+1
+#        self.dns = dns_records
+#
+#    def load_geo_info(self, ip, result):
+#        #print("Loading Geo info data")
+#        
+#        geo_data = {}
+#        keys = ['country', 'region' ,'city' ,'loc' ,'org']
+#        for i in range(len(keys)):
+#            geo_data[keys[i]] = result[keys[i]]
+#
+#        self.geo_data = geo_data
+#        print("geo data:")
+#        print(geo_data)
+#
+#    def load_ssl_data(self, result):
+#        ssl_data = {'is_ssl': result['is_ssl'],
+#                    'ssl_data': {
+#                        'issuer': result['issuer'],
+#                        'end_date': datetime.datetime(result['end_date']),
+#                        'start_date': datetime.datetime(result['start_date'])
+#                        }
+#        print("ssl data:")
+#        print(self.ssl_data)
+#            if type == 'A':
+#                self.ip = result[0]
+#            print("DNS type " + type +" " + str(result[0]))
+#            dns_records[types[i]] = str(result[0])
+#            i=i+1
+#        self.dns = dns_records
+#
+#    def load_geo_info(self, ip, result):
+#        #print("Loading Geo info data")
+#        
+#        geo_data = {}
+#        keys = ['country', 'region' ,'city' ,'loc' ,'org']
+#        for i in range(len(keys)):
+#            geo_data[keys[i]] = result[keys[i]]
+#
+#        self.geo_data = geo_data
+#        print("geo data:")
+#        print(geo_data)
+#
+#    def load_ssl_data(self, result):
+#        ssl_data = {'is_ssl': result['is_ssl'],
+#                    'ssl_data': {
+#                        'issuer': result['issuer'],
+#                        'end_date': datetime.datetime(result['end_date']),
+#                        'start_date': datetime.datetime(result['start_date'])
+#                        }
+#        print("ssl data:")
+#        print(self.ssl_data)
 
 def get_connection_string(ident='DBConnDB'):
     ret = None
@@ -271,6 +192,46 @@ def get_connection_string(ident='DBConnDB'):
         ret = p.stdout.read().strip().decode()
     return ret
 
+def writeQueryResultIntoFile(filename, result, type_t):
+                    with open(filename+".json", "w") as f:
+                        f.write("{ \"results\":[")
+                        resultCounter = 0
+                        resultCount = len(result)
+                        for row in result:
+                            if(type_t == "https"):
+                                result_dict = {
+                                        "timestamp":row[0],
+                                        "src_ip_addr":row[1],
+                                        "dst_ip_addr":row[2],
+                                        "dst_domains":row[3],
+                                        "ssl_valid_from":row[4],
+                                        "ssl_valid_until":row[5],
+                                        "ssl_issuer":row[6]
+                                }
+                            elif(type_t == "http"):
+                                result_dict = {
+                                        "timestamp":row[0],
+                                        "src_ip_addr":row[1],
+                                        "dst_ip_addr":row[2],
+                                        "dst_domains":row[3],
+                                        }
+                            elif(type_t == "geoip"):
+                                result_dict = {
+                                        "country_code":row[0],
+                                        "latitude":row[1],
+                                        "longitude":row[2]
+                                        }
+                            elif(type_t == "dns"):
+                                result_dict = {
+                                        "questions":row[0],
+                                        "answers":row[1]
+                                        }
+                            result_json = json.dumps(result_dict, indent=4, default=str)
+                            f.write(result_json)
+                            resultCounter +=1
+                            if(resultCounter < resultCount):
+                                f.write(",")
+                        f.write("]}")
 
 def main():
     connectionString = get_connection_string()
@@ -278,17 +239,67 @@ def main():
 
     cur = conn.cursor()
 
+    ip = ""
+    domain = ""
+    #DNS_QUERY = "SELECT src_json->'questions', dst_json->'answers' FROM nb.flows01, unnest(src_app_json) AS src_json, unnest   (dst_app_json) AS dst_json WHERE service='DNS' LIMIT 100;"
+    
+    HTTP_QUERY = """
+                    SELECT timestamp, src_ip_addr, dst_ip_addr, dst_domains 
+                    FROM nb.flows01 
+                    WHERE service='HTTP'AND dst_domains IS NOT NULL 
+                    LIMIT 100;
+                """
+
+    HTTPS_QUERY =   """
+                    SELECT timestamp, src_ip_addr, dst_ip_addr, dst_domains, dst_json->'Valid from',
+                    dst_json->'Valid until', dst_json->'issuerdn' 
+                    FROM nb.flows01, unnest(dst_app_json) AS dst_json 
+                    WHERE service='HTTPS' AND dst_domains IS NOT NULL
+                    LIMIT 100;"""
 
 
-
-    #cur.execute("SELECT * from nb.flows01 where service='HTTP' LIMIT 100;")
-    result = cur.fetchall()
-
-    for row in result:
-        print(row)
+    cur.execute(HTTPS_QUERY)
+    https_result = cur.fetchall()
+    writeQueryResultIntoFile("https_result", https_result, "https")    
+    
+    with open("https_result.json") as f:
+        https_json = json.load(f)
+        i = 0
+        for https_record in https_json["results"]:
+            if(i < 5):
+                domain = https_record['dst_domains'][0]
+                ip = https_record['dst_ip_addr']
+                i+=1
+                DNS_QUERY="""
+                    SELECT src_json->'questions', dst_json->'answers' 
+                    FROM nb.flows01, 
+                         unnest(src_app_json) AS src_json, 
+                         unnest(dst_app_json) AS dst_json, 
+                         jsonb_array_elements(src_json->'questions') AS question 
+                    WHERE service='DNS' AND question->>'rrname'='{0}' 
+                    LIMIT 100;""".format(domain)
+                GEOIP_QUERY ="""
+                SELECT country_code, latitude, longitude 
+                FROM ti.geoip_asn 
+                WHERE ip_addrs='{0}'
+                """.format(ip)
+                cur.execute(GEOIP_QUERY)
+                geoip_result = cur.fetchall()
+                cur.execute(DNS_QUERY)
+                dns_result = cur.fetchall()
+                writeQueryResultIntoFile("geoip_result.txt", geoip_result, "geoip")
+                writeQueryResultIntoFile("dns_result.txt", dns_result, "dns")
+            break
+                
 
     cur.close()
     conn.close()
 
 if __name__ == "__main__":
     main()
+
+
+#SELECT timestamp, 
+#FROM nb.flows01
+#WHERE service='HTTP' OR (service='DNS' AND dst_domains IN (SELECT dst_domains FROM nb.flows01 WHERE service='HTTP'))
+
