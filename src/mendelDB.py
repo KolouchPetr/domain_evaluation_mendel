@@ -163,27 +163,25 @@ def writeQueryResultIntoFile(filename, result, type_t):
                         for row in result:
                             if(type_t == "https"):
                                 ssl_issuer = None
-                                if(row[6] != None):
-                                    ssl_issuer = row[6].split(', ')
+                                if(row[5] != None):
+                                    ssl_issuer = str(row[5]).split(', ')
                                     for substr in ssl_issuer:
                                         if(substr.startswith("O=")):
                                             ssl_issuer=substr
                                             break;
                                 result_dict = {
-                                        "timestamp":row[0],
-                                        "src_ip_addr":row[1],
-                                        "dst_ip_addr":row[2],
-                                        "dst_domains":row[3],
-                                        "ssl_valid_from":row[4],
-                                        "ssl_valid_until":row[5],
+                                        "src_ip_addrs":row[0],
+                                        "dst_ip_addrs":row[1],
+                                        "dst_domains":row[2],
+                                        "ssl_valid_from":row[3],
+                                        "ssl_valid_until":row[4],
                                         "ssl_issuer":ssl_issuer
                                 }
                             elif(type_t == "http"):
                                 result_dict = {
-                                        "timestamp":row[0],
-                                        "src_ip_addr":row[1],
-                                        "dst_ip_addr":row[2],
-                                        "dst_domains":row[3],
+                                        "src_ip_addrs":row[0],
+                                        "dst_ip_addrs":row[1],
+                                        "dst_domains":row[2],
                                         }
                             elif(type_t == "geoip"):
                                 result_dict = {
@@ -218,18 +216,31 @@ def main():
     #DNS_QUERY = "SELECT src_json->'questions', dst_json->'answers' FROM nb.flows01, unnest(src_app_json) AS src_json, unnest   (dst_app_json) AS dst_json WHERE service='DNS' LIMIT 100;"
     
     HTTP_QUERY = """
-                    SELECT timestamp, src_ip_addr, dst_ip_addr, dst_domains 
+                    SELECT array_unique(src_ip_addr) AS src_ip_addr, array_unique(dst_ip_addr),dst_domains 
                     FROM nb.flows01 
-                    WHERE service='HTTP'AND dst_domains IS NOT NULL 
+                    WHERE service='HTTP'AND dst_domains IS NOT NULL
+                    GROUP BY dst_domains
                     LIMIT 100;
                 """
 
-    HTTPS_QUERY =   """
-                    SELECT timestamp, src_ip_addr, dst_ip_addr, dst_domains, dst_json->'Valid from',
-                    dst_json->'Valid until', dst_json->'issuerdn' 
-                    FROM nb.flows01, unnest(dst_app_json) AS dst_json 
-                    WHERE service='HTTPS' AND dst_domains IS NOT NULL
-                    LIMIT 100;"""
+   # HTTPS_QUERY =   """
+   #                 SELECT DISTINCT ON (dst_domains) timestamp, src_ip_addr,
+   #                 dst_ip_addr, dst_domains, dst_json->'Valid from',
+   #                 dst_json->'Valid until', dst_json->'issuerdn' 
+   #                 FROM nb.flows01, unnest(dst_app_json) AS dst_json 
+   #                 WHERE service='HTTPS' AND dst_domains IS NOT NULL
+   #                 LIMIT 100;"""
+
+    HTTPS_QUERY = """
+                  SELECT array_unique(src_ip_addr) AS src_ip_addrs, array_unique(dst_ip_addr) AS dst_ip_addrs,
+                  dst_domains, array_unique(dst_json->'Valid from') AS valid_from ,
+                  array_unique(dst_json->'Valid until') AS Valid_until, array_unique(dst_json->'issuerdn') AS issuerdn
+                  FROM nb.flows01,
+                  unnest(dst_app_json) AS dst_json 
+                  WHERE service='HTTPS' AND dst_domains IS NOT NULL 
+                  GROUP BY dst_domains
+                  limit 10;
+                  """
 
 
     cur.execute(HTTPS_QUERY)
@@ -240,17 +251,18 @@ def main():
         https_json = json.load(f)
         i = 0
         for https_record in https_json["results"]:
-            if(i < 5):
+            if(i < 50):
                 domain = https_record['dst_domains'][0]
-                ip = https_record['dst_ip_addr']
+                ip = https_record['dst_ip_addrs'][0]
                 i+=1
                 DNS_QUERY="""
-                    SELECT src_json->'questions', dst_json->'answers' 
+                    SELECT array_unique(src_json->'questions'), dst_json->'answers' 
                     FROM nb.flows01, 
                          unnest(src_app_json) AS src_json, 
                          unnest(dst_app_json) AS dst_json, 
                          jsonb_array_elements(src_json->'questions') AS question 
-                    WHERE service='DNS' AND question->>'rrname'='{0}';
+                    WHERE service='DNS' AND question->>'rrname'='{0}'
+                    GROUP BY dst_json;
                     """.format(domain)
                 GEOIP_QUERY ="""
                 SELECT ip_addrs, country_code, latitude, longitude, city, geoip_asn.company,geoip_asn.code 
