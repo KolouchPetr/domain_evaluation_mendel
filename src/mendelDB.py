@@ -85,99 +85,61 @@ def prepare_sm_event_query(timestamp, sensor, sid, src_ip, src_mac, dst_port, de
 
 #function report_adt_event()
 
-#    def load_whois_data(self):
-#            #print("[Info]: LOADING WHOIS DATA\n")
-#            whois_record = {}
-#            try:
-#                types = ['registrar', 'creation_date', 'expiration_date', 'dnssec', 'emails']
-#                w = whois.whois(self.hostname)
-#                #print("[INFO] w from whois is: \n")
-#                #print(w)
-#                i = 0
-#                for type in types:
-#                    try:
-#                        whois_record[types[i]] = w[types[i]]
-#                    except:
-#                        whois_record[types[i]] = None
+#     def load_whois_data(self):
+#             #print("[Info]: LOADING WHOIS DATA\n")
+#             whois_record = {}
+#             try:
+#                 types = ['registrar', 'creation_date', 'expiration_date', 'dnssec', 'emails']
+#                 w = whois.whois(self.hostname)
+#                 i = 0
+#                 for type in types:
+#                     try:
+#                         whois_record[types[i]] = w[types[i]]
+#                     except:
+#                         whois_record[types[i]] = None
 #
-#                    i=i+1
-#                self.whois_data = whois_record
-#                #print("whois data\n")
-#                #print(whois_record)
-#                return True
+#                     i=i+1
+#                 self.whois_data = whois_record
+#                 return True
 #
 #
-#    def load_dns_data(self, result):
-#        if(result = None):
-#            self.dns = None
-#            return
-#            #print("Loading DNS data")
-#            types = ['A', 'AAAA', 'CNAME', 'SOA', 'NS', 'MX', 'TXT']
-#            #types = ['TXT']
-#            dns_records = {}
-#            i = 0
-#            for type in types:
-#                    dns_records[types[i]] = result[types[i]]
-#                    i=i+1
+#     def load_dns_data(self, result):
+#         if(result = None):
+#             self.dns = None
+#             return
+#             types = ['A', 'AAAA', 'CNAME', 'SOA', 'NS', 'MX', 'TXT']
+#             dns_records = {}
+#             i = 0
+#             for type in types:
+#                     dns_records[types[i]] = result[types[i]]
+#                     i=i+1
 #
-#                #print(type + " " + self.hostname + " --> " + str(result[0]))
-#                #input()
-#                if type == 'A':
-#                    self.ip = result[0]
-#                print("DNS type " + type +" " + str(result[0]))
-#                dns_records[types[i]] = str(result[0])
-#                i=i+1
-#            self.dns = dns_records
+#                 #print(type + " " + self.hostname + " --> " + str(result[0]))
+#                 if type == 'A':
+#                     self.ip = result[0]
+#                 print("DNS type " + type +" " + str(result[0]))
+#                 dns_records[types[i]] = str(result[0])
+#                 i=i+1
+#             self.dns = dns_records
 #
-#        def load_geo_info(self, ip, result):
-#            #print("Loading Geo info data")
-#            
-#            geo_data = {}
-#            keys = ['country', 'region' ,'city' ,'loc' ,'org']
-#            for i in range(len(keys)):
-#                geo_data[keys[i]] = result[keys[i]]
+#    def load_geo_info(self, ip, result):
+#        geo_data = {}
+#        #TODO region missing
+#        keys = ['country', 'region' ,'city' ,'loc' ,'org']
+#        for i in range(len(keys)):
+#            geo_data[keys[i]] = result[keys[i]]
 #
-#            self.geo_data = geo_data
-#            print("geo data:")
-#            print(geo_data)
+#        self.geo_data = geo_data
+#        print("geo data:")
+#        print(geo_data)
 #
-#        def load_ssl_data(self, result):
-#            ssl_data = {'is_ssl': result['is_ssl'],
-#                        'ssl_data': {
-#                            'issuer': result['issuer'],
-#                            'end_date': datetime.datetime(result['end_date']),
-#                            'start_date': datetime.datetime(result['start_date'])
-#                            }
-#            print("ssl data:")
-#            print(self.ssl_data)
-#                if type == 'A':
-#                    self.ip = result[0]
-#                print("DNS type " + type +" " + str(result[0]))
-#                dns_records[types[i]] = str(result[0])
-#                i=i+1
-#            self.dns = dns_records
-#
-#        def load_geo_info(self, ip, result):
-#            #print("Loading Geo info data")
-#            
-#            geo_data = {}
-#            keys = ['country', 'region' ,'city' ,'loc' ,'org']
-#            for i in range(len(keys)):
-#                geo_data[keys[i]] = result[keys[i]]
-#
-#            self.geo_data = geo_data
-#            print("geo data:")
-#            print(geo_data)
-#
-#        def load_ssl_data(self, result):
-#            ssl_data = {'is_ssl': result['is_ssl'],
-#                        'ssl_data': {
-#                            'issuer': result['issuer'],
-#                            'end_date': datetime.datetime(result['end_date']),
-#                            'start_date': datetime.datetime(result['start_date'])
-#                            }
-#            print("ssl data:")
-#            print(self.ssl_data)
+#    def load_ssl_data(self, result):
+#        ssl_data = {'is_ssl': result['is_ssl'],
+#                    'ssl_data': {
+#                        'issuer': result['issuer'],
+#                        'end_date': datetime.datetime(result['end_date']),
+#                        'start_date': datetime.datetime(result['start_date'])
+#                        }
 
 def get_connection_string(ident='DBConnDB'):
     ret = None
@@ -200,6 +162,7 @@ def writeQueryResultIntoFile(filename, result, type_t):
                         resultCount = len(result)
                         for row in result:
                             if(type_t == "https"):
+                                ssl_issuer = None
                                 if(row[6] != None):
                                     ssl_issuer = row[6].split(', ')
                                     for substr in ssl_issuer:
@@ -227,7 +190,10 @@ def writeQueryResultIntoFile(filename, result, type_t):
                                         "ip_addrs":row[0],
                                         "country_code":row[1],
                                         "latitude":row[2],
-                                        "longitude":row[3]
+                                        "longitude":row[3],
+                                        "city":row[4],
+                                        "company":row[5],
+                                        "ASN":"AS"+str(row[6])
                                         }
                             elif(type_t == "dns"):
                                 result_dict = {
@@ -284,11 +250,12 @@ def main():
                          unnest(src_app_json) AS src_json, 
                          unnest(dst_app_json) AS dst_json, 
                          jsonb_array_elements(src_json->'questions') AS question 
-                    WHERE service='DNS' AND question->>'rrname'='{0}' 
-                    LIMIT 100;""".format(domain)
+                    WHERE service='DNS' AND question->>'rrname'='{0}';
+                    """.format(domain)
                 GEOIP_QUERY ="""
-                SELECT ip_addrs, country_code, latitude, longitude 
+                SELECT ip_addrs, country_code, latitude, longitude, city, geoip_asn.company,geoip_asn.code 
                 FROM ti.geoip_asn
+                JOIN ti.asns ON geoip_asn.code=asns.code
                 WHERE '{0}'::inet << ip_addrs
                 LIMIT 10;
                 """.format(ip)
