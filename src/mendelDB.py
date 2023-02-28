@@ -79,12 +79,6 @@ def prepare_sm_event_query(timestamp, sensor, sid, src_ip, src_mac, dst_port, de
 #  1 on error
 #
 
-
-
-
-
-#function report_adt_event()
-#TODO expire etc data formating viz document
 def load_dns_data(result):
     dns_types = ['A', 'AAAA', 'CNAME', 'SOA', 'NS', 'MX', 'TXT']
     dns_records = {
@@ -241,7 +235,6 @@ def main():
     cur.execute(HTTPS_QUERY)
     https_result = cur.fetchall()
     returnJson = createQueryResultObject("https_result", https_result, "https")
-    #print(returnJson)
     
     https_json = returnJson
     i = 0
@@ -277,11 +270,8 @@ def main():
             dns = createQueryResultObject("dns_result", dns_result, "dns")
 
             ssl_data = load_ssl_data(https_record)
-            #print("vstup pro ssl je {0}".format(https_record))
             geo_data = load_geo_info(geo["results"][0])
-            #print("vstup pro geo je {0}".format(geo["results"][0]))
             dns_data = load_dns_data(dns["results"][0])
-            #print("vstup pro dns je {0}".format(dns["results"][0]))
             domainResult = {"ssl": ssl_data,
                             "geo": geo_data,
                             "dns": dns_data}
@@ -291,19 +281,9 @@ def main():
         else:
             break
 
-    #FIXME dates may be in the wrong format
-    
-
-              
-
     cur.close()
     conn.close()
 
 if __name__ == "__main__":
     main()
-
-
-#SELECT timestamp, 
-#FROM nb.flows01
-#WHERE service='HTTP' OR (service='DNS' AND dst_domains IN (SELECT dst_domains FROM nb.flows01 WHERE service='HTTP'))
 
