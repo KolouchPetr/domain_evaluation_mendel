@@ -12,5 +12,4 @@ python-dotenv
 pyOpenSSL
 sklearn
 psycopg2
-git+https://github.com/rthalley/dnspython
-scikit-learn
+scikit-learn==1.0.2
