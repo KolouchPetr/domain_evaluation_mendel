@@ -3,7 +3,6 @@
 import whois
 import socket
 import concurrent.futures
-import dns.resolver
 import requests
 import json
 import urllib

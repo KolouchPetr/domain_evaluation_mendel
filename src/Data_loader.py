@@ -9,7 +9,6 @@
 
 import socket
 import concurrent.futures
-import dns.resolver
 import requests
 import json
 import sys
@@ -22,6 +21,7 @@ import os
 import time
 import csv
 import whois
+from datetime import datetime
 
 # Import custom modules
 import Database
@@ -37,18 +37,6 @@ validTxtTypes = {"plain", "octet-stream", "html"}
 validArchTypes = {"x-gzip"}  
 ipRegEx = r"^((?:(?:(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):){6})(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):(?:(?:[0-9a-fA-F]{1,4})))|(?:(?:(?:(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9]))\.){3}(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9])))))))|(?:(?:::(?:(?:(?:[0-9a-fA-F]{1,4})):){5})(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):(?:(?:[0-9a-fA-F]{1,4})))|(?:(?:(?:(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9]))\.){3}(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9])))))))|(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})))?::(?:(?:(?:[0-9a-fA-F]{1,4})):){4})(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):(?:(?:[0-9a-fA-F]{1,4})))|(?:(?:(?:(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9]))\.){3}(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9])))))))|(?:(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):){0,1}(?:(?:[0-9a-fA-F]{1,4})))?::(?:(?:(?:[0-9a-fA-F]{1,4})):){3})(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):(?:(?:[0-9a-fA-F]{1,4})))|(?:(?:(?:(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9]))\.){3}(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9])))))))|(?:(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):){0,2}(?:(?:[0-9a-fA-F]{1,4})))?::(?:(?:(?:[0-9a-fA-F]{1,4})):){2})(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):(?:(?:[0-9a-fA-F]{1,4})))|(?:(?:(?:(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9]))\.){3}(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9])))))))|(?:(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):){0,3}(?:(?:[0-9a-fA-F]{1,4})))?::(?:(?:[0-9a-fA-F]{1,4})):)(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):(?:(?:[0-9a-fA-F]{1,4})))|(?:(?:(?:(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9]))\.){3}(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9])))))))|(?:(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):){0,4}(?:(?:[0-9a-fA-F]{1,4})))?::)(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):(?:(?:[0-9a-fA-F]{1,4})))|(?:(?:(?:(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9]))\.){3}(?:(?:25[0-5]|(?:[1-9]|1[0-9]|2[0-4])?[0-9])))))))|(?:(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):){0,5}(?:(?:[0-9a-fA-F]{1,4})))?::)(?:(?:[0-9a-fA-F]{1,4})))|(?:(?:(?:(?:(?:(?:[0-9a-fA-F]{1,4})):){0,6}(?:(?:[0-9a-fA-F]{1,4})))?::)))))|((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"
 ValidHostnameRegex = r"(?:[a-z0-9](?:[a-z0-9-_]{0,61}[a-z0-9])?\.)+[a-z0-9][a-z0-9-_]{0,61}[a-z0-9]"
-
-
-######################
-##### ip-info API ####
-######################
-
-# if not used, limited number of requests
-#ip_auth_token="f6157341b9e078"  # medikem token
-ip_auth_token="6b3b15bcf578ec"  # seznam token
-#ip_auth_token="7b7427498417ed"  # medikem token
-
-########################
 
 class Data_loader:  
     def get_hostnames(self, file_path, position, max=1000):
@@ -159,11 +147,6 @@ class Base_parser:
         self.whois_data = None
         self.ssl_data = None
 
-        self.dns_resolver = dns.resolver.Resolver()
-        self.dns_resolver.nameservers = ["8.8.8.8", "8.8.4.4"]
-        self.dns_resolver.timeout = resolver_timeout
-        self.dns_resolver.lifetime = resolver_timeout
-
     def get_dns(self):
         return self.dns
 
@@ -204,71 +187,63 @@ class Base_parser:
             print("[Info]: Resolver can't load all whois data")
             return False
 
-    def load_dns_data(self):
-        #print("Loading DNS data")
-        types = ['A', 'AAAA', 'CNAME', 'SOA', 'NS', 'MX', 'TXT']
-        #types = ['TXT']
-        dns_records = {}
-        i = 0
-        for type in types:
-            result = None;
-            try:
-                result = self.dns_resolver.resolve(self.hostname, type)
-            except Exception as e:
-                #print(type + " is not available for this hostname")
-                dns_records[types[i]] = None
-                i=i+1
-                continue
 
-            #print(type + " " + self.hostname + " --> " + str(result[0]))
-            #input()
-            if type == 'A':
-                print("ip")
-                print(result[0])
-                self.ip = result[0]
-            print("DNS type " + type +" " + str(result[0]))
-            dns_records[types[i]] = str(result[0])
-            i=i+1
-        print("DNS records:")
-        print(dns_records)
+    def load_dns_data(self, result):
+        dns_types = ['A', 'AAAA', 'CNAME', 'SOA', 'NS', 'MX', 'TXT']
+        dns_records = {
+                'A':None,
+                'AAAA':None,
+                'CNAME':None,
+                'SOA':None,
+                'NS':None,
+                'MX':None,
+                'TXT':None
+                }
+        if(result is not None and result["answers"] is not None):
+            for answers in result["answers"]:
+                for answer in answers:
+                    #print("in answer: ")
+                    #print(answer)
+                    i = 0
+                    for dns_type in dns_types:
+                        if(dns_types[i] == answer["rrtype"]):
+                            if(dns_records[dns_types[i]] is None):
+                                if(dns_types[i] == 'SOA'):
+                                    dns_records[dns_types[i]] = "{0} {1} {2} {3} {4} {5} {6}".format(answer["mname"],
+                                                                                                 answer["rname"],
+                                                                                                 answer["serial"],
+                                                                                                 answer["refresh"],
+                                                                                                 answer["retry"],
+                                                                                                 answer["expire"],
+                                                                                                 answer["minimum"])
+                                elif("rdata" in answer): 
+                                    dns_records[dns_types[i]] = answer["rdata"]
+                        i=i+1
+
+                    #print(type + " " + self.hostname + " --> " + str(result[0]))
         self.dns = dns_records
 
-    def load_geo_info(self, ip=None):
-        #print("Loading Geo info data")
-        if ip is None:
-            if self.ip is None:
-                #print("Ip of hostname not discovered, doing it manualy...")
-                try:
-                    self.ip = self.ip_from_host()[self.hostname][0]
-                except:
-                    print("[Info]: Cant resolve hostname to IP")
-                return False
-        else:
-            self.ip = ip
-        
+    def load_geo_info(self, result):
         geo_data = {}
+        #TODO region missing
         keys = ['country', 'region' ,'city' ,'loc' ,'org']
-        url =  "https://ipinfo.io/" + str(self.ip) + "/?token=" + ip_auth_token
-        raw_json = None
-        try:
-            raw_json = requests.get(url).json()
-        except:
-            self.geo_data = None
-            return
         for i in range(len(keys)):
-            try:
-                geo_data[keys[i]] = raw_json[keys[i]]
-            except:
+            if(keys[i] in result):
+                geo_data[keys[i]] = result[keys[i]]
+            else:
                 geo_data[keys[i]] = None
-
         self.geo_data = geo_data
-        print("geo data:")
-        print(geo_data)
 
-    def load_ssl_data(self):
-        self.ssl_data = SSL_loader.discover_ssl(self.hostname, self.timeout)
-        print("ssl data:")
-        print(self.ssl_data)
+    def load_ssl_data(self, result):
+        is_ssl = result['ssl_issuer'] is not None
+        ssl_data = {'is_ssl': is_ssl,
+                    'ssl_data': {
+                    'issuer': result['ssl_issuer'] if is_ssl else None,
+                    'end_date': datetime.strptime(result['ssl_valid_until'][0], "%Y-%m-%dT%H:%M:%S") if is_ssl else None,
+                    'start_date': datetime.strptime(result['ssl_valid_from'][0], "%Y-%m-%dT%H:%M:%S") if is_ssl else None
+                        }
+             }
+        self.ssl_data = ssl_data
 
     def ip_from_host(self):
         hostname = self.hostname

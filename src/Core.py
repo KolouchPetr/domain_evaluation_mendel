@@ -66,7 +66,7 @@ class clasifier:
                 for details see readme
 
         """     
-        def __init__(self) -> None:
+        def __init__(self, ssl_data, geo_data, dns_data) -> None:
                 load_dotenv()
                 self.models = getenv("MODELS_FOLDER")
                 self.resolver_timeout = int(getenv("RESOLVER_TIMEOUT"))
@@ -74,6 +74,10 @@ class clasifier:
                 self.data = None
                 self.loaded_data = False
                 self.accuracy = 0
+
+                self.ssl_data = ssl_data
+                self.geo_data = geo_data
+                self.dns_data = dns_data
 
                 # model for paralel data resolving
                 self.paralel = getenv("PARALEL")
@@ -94,17 +98,17 @@ class clasifier:
 
                 ### Paralel or sequestial data-load ###
                 if self.paralel == 'True':
-                        threading.Thread(target=domain.load_dns_data).start()
-                        threading.Thread(target=domain.load_geo_info).start()
+                        threading.Thread(target=domain.load_dns_data, args=(self.dns_data)).start()
+                        threading.Thread(target=domain.load_geo_info, args=(self.geo_data)).start()
                         threading.Thread(target=domain.load_whois_data).start()
-                        threading.Thread(target=domain.load_ssl_data).start()
+                        threading.Thread(target=domain.load_ssl_data, args=(self.ssl_data)).start()
 
                 else:
                 #sequential data load
-                        domain.load_dns_data()
-                        domain.load_geo_info()
+                        domain.load_dns_data(self.dns_data)
+                        domain.load_geo_info(self.geo_data)
                         domain.load_whois_data()
-                        domain.load_ssl_data()
+                        domain.load_ssl_data(self.ssl_data)
 
                 # Get loaded data #
                 dns_data = domain.get_dns()
@@ -117,6 +121,7 @@ class clasifier:
                 print("[Info]: All data collected, data loss: ", np.around((1-self.accuracy)*100, 2), " %")
 
                 in_data = {"name": hostname, "dns_data": dns_data, "geo_data": geo_data, "whois_data": whois_data, "ssl_data": ssl_data}
+                print("[Info] in data: {0}".format(in_data))
                 
                 lex = Lexical_analysis()
                 self.data = lex.process_data(in_data)

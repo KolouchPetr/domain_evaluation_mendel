@@ -14,6 +14,9 @@ import numpy as np
 import argparse
 
 
+import psycopg2
+
+
 # Load custom modules
 import Database
 from Data_loader import Base_parser
@@ -22,6 +25,8 @@ import Parser
 from Parser import Net
 from Preprocessor import preprocess 
 from Core import clasifier
+from mendelDB import *
+
 
 
 class resolver:
@@ -35,8 +40,8 @@ class resolver:
 
     """
 
-    def __init__(self, domain_name) -> None:
-        self.cls = clasifier()
+    def __init__(self, domain_name, ssl_data, geo_data, dns_data) -> None:
+        self.cls = clasifier(ssl_data, geo_data, dns_data)
         self.domain_name = domain_name
 
     # Get combined prediction, details can be found in REDME or documentation
@@ -117,54 +122,87 @@ class resolver:
 
 
 if __name__ == "__main__":
-    ### Supported arguments ###
-    parser = argparse.ArgumentParser(description='domain name analysis tool')
-    parser.add_argument('domain_name', type=str, help='Required domain name')
-    parser.add_argument('--lexical', action='store_true', help='Use only lexical model for classification')
-    parser.add_argument('--data_based', action='store_true', help='Use only data-based model for classification')
-    parser.add_argument('--svm', action='store_true', help='Use only svm model for classification')
-    parser.add_argument('--silent', action='store_true', help='No output')
-    parser.add_argument('--stdout', action='store_true', help='Output to stdout instead of file')
+    connectionString = "postgresql://melanie:5432/tidb?user=tidb&password=10.23456"
+    conn = psycopg2.connect(connectionString)
 
+    cur = conn.cursor()
 
-    ### Parse arguments ###
-    args = parser.parse_args()
-    domain_name = args.domain_name
-    m_lexical = args.lexical
-    m_data_based = args.data_based
-    m_svm = args.svm
-    m_silent = args.silent
-    m_stdout = args.stdout
-
-    if [m_lexical, m_data_based, m_svm].count(True) > 1:
-        print("[Error]: Can use only one classification mode")
-        exit(1)
-
-    if m_silent:
-
-        f = open(os.devnull, 'w')
-        sys.stdout = f
+    ip = ""
+    domain = ""
+    #DNS_QUERY = "SELECT src_json->'questions', dst_json->'answers' FROM nb.flows01, unnest(src_app_json) AS src_json, unnest   (dst_app_json) AS dst_json WHERE service='DNS' LIMIT 100;"
     
-    ### Starting main resolver ###
-    res = resolver(domain_name)
+    HTTP_QUERY = """
+                    SELECT array_unique(src_ip_addr) AS src_ip_addr, array_unique(dst_ip_addr),dst_domains 
+                    FROM nb.flows01 
+                    WHERE service='HTTP'AND dst_domains IS NOT NULL
+                    GROUP BY dst_domains
+                    LIMIT 100;
+                """
 
-    if m_lexical:
-        r_data = res.get_lexical()
+   # HTTPS_QUERY =   """
+   #                 SELECT DISTINCT ON (dst_domains) timestamp, src_ip_addr,
+   #                 dst_ip_addr, dst_domains, dst_json->'Valid from',
+   #                 dst_json->'Valid until', dst_json->'issuerdn' 
+   #                 FROM nb.flows01, unnest(dst_app_json) AS dst_json 
+   #                 WHERE service='HTTPS' AND dst_domains IS NOT NULL
+   #                 LIMIT 100;"""
 
-    elif m_data_based:
-        r_data = res.get_data()
+    HTTPS_QUERY = """
+                  SELECT array_unique(src_ip_addr) AS src_ip_addrs, array_unique(dst_ip_addr) AS dst_ip_addrs,
+                  dst_domains, array_unique(dst_json->'Valid from') AS valid_from ,
+                  array_unique(dst_json->'Valid until') AS Valid_until, array_unique(dst_json->'issuerdn') AS issuerdn
+                  FROM nb.flows01,
+                  unnest(dst_app_json) AS dst_json 
+                  WHERE service='HTTPS' AND dst_domains IS NOT NULL 
+                  GROUP BY dst_domains
+                  ORDER BY dst_domains desc
+                  limit 25;
+                  """
 
-    elif m_svm:
-        r_data = res.get_svm()
+
+    cur.execute(HTTPS_QUERY)
+    https_result = cur.fetchall()
+    https_json = createQueryResultObject("https_result", https_result, "https")
+    i = 0
+    domains = []
+    for https_record in https_json["results"]:
+            domain = https_record['dst_domains'][0]
+            ip = https_record['dst_ip_addrs'][0]
+            i+=1
+            domains.append(domain)
+            DNS_QUERY=""" SELECT array_unique(src_json->'questions') AS questions,
+            array_unique(dst_json->'answers') AS answers 
+            FROM nb.flows01,
+            unnest(src_app_json) AS src_json,
+            unnest(dst_app_json) AS dst_json, 
+            jsonb_array_elements(src_json->'questions') AS question 
+            WHERE service='DNS' AND (question->>'rrname')::text='{0}';
+            """.format(domain)
+
+            GEOIP_QUERY ="""
+            SELECT ip_addrs, country_code, latitude, longitude, city, geoip_asn.company,geoip_asn.code 
+            FROM ti.geoip_asn
+            JOIN ti.asns ON geoip_asn.code=asns.code
+            WHERE '{0}'::inet << ip_addrs
+            LIMIT 10;
+            """.format(ip)
+
+            cur.execute(GEOIP_QUERY)
+            geoip_result = cur.fetchall()
+            geo = createQueryResultObject("geoip_result", geoip_result, "geoip") 
+
+            cur.execute(DNS_QUERY)
+            dns_result = cur.fetchall()
+            dns = createQueryResultObject("dns_result", dns_result, "dns")
+
+            res = resolver(domain, https_record, geo["results"][0], dns["results"][0])
+            r_data = res.get_combined()
+
+            res.output_stdout(r_data)
+    #with open("domains.txt", "w") as f:
+        #for domain in domains:
+            #f.write(domain+'\n')
+    cur.close()
+    conn.close()
     
-    else:
-        r_data = res.get_combined()
-
-    if not m_stdout:
-        res.output_json(r_data)
-    else:
-        res.output_stdout(r_data)
-
-
-
 
