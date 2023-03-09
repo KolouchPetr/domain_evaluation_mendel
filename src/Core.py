@@ -138,8 +138,8 @@ class clasifier:
                 for i in range(iter):
                         bigrams.append(0)
                 if len(bigrams) > MAX_BIGRAM_LEN:
+                        bigrams = bigrams[:MAX_BIGRAM_LEN]
                         print("[Error]: Domain name to long, cant fit lexical model")
-                        exit(1)  
 
                 in_data = np.array([bigrams], dtype=np.float32)
 
@@ -177,7 +177,7 @@ class clasifier:
                 data = self.get_data(hostname)
                 svm = self.get_svm(hostname)
                 lexical = self.get_lexical(hostname)
-
+                
 
                 ## weight mode ##
                 # auto -> based od accuracy
