@@ -15,7 +15,7 @@ import argparse
 
 
 import psycopg2
-
+from dotenv import dotenv_values
 
 # Load custom modules
 import Database
@@ -27,6 +27,7 @@ from Preprocessor import preprocess
 from Core import clasifier
 from mendelDB import *
 
+env = dotenv_values(".env.mendel")
 
 
 class resolver:
@@ -50,9 +51,10 @@ class resolver:
         lexical = self.cls.get_lexical(self.domain_name)
         data_based = self.cls.get_data(self.domain_name)
         svm = self.cls.get_svm(self.domain_name)
-
+        
         combined, accuracy = self.cls.get_mixed(self.domain_name) 
-
+        if(combined is None or accuracy is None):
+            return None
 
         combined = np.around(combined, 3)
         accuracy = np.around(accuracy, 3)
@@ -122,13 +124,15 @@ class resolver:
 
 
 if __name__ == "__main__":
-    connectionString = "postgresql://melanie:5432/tidb?user=tidb&password=10.23456"
-    conn = psycopg2.connect(connectionString)
+
+    #parser = argparse.ArgumentParser(prog='Mendel URL Analyser', description='Mendel implementation of domain name analysis tool')
+
+    #parser.add_argument('')
+
+    conn = psycopg2.connect(env['MENDEL_CONNECTION_STRING'])
 
     cur = conn.cursor()
 
-    ip = ""
-    domain = ""
     #DNS_QUERY = "SELECT src_json->'questions', dst_json->'answers' FROM nb.flows01, unnest(src_app_json) AS src_json, unnest   (dst_app_json) AS dst_json WHERE service='DNS' LIMIT 100;"
     
     HTTP_QUERY = """
@@ -148,15 +152,15 @@ if __name__ == "__main__":
    #                 LIMIT 100;"""
 
     HTTPS_QUERY = """
-                  SELECT array_unique(src_ip_addr) AS src_ip_addrs, array_unique(dst_ip_addr) AS dst_ip_addrs,
-                  dst_domains, array_unique(dst_json->'Valid from') AS valid_from ,
-                  array_unique(dst_json->'Valid until') AS Valid_until, array_unique(dst_json->'issuerdn') AS issuerdn
-                  FROM nb.flows01,
-                  unnest(dst_app_json) AS dst_json 
-                  WHERE service='HTTPS' AND dst_domains IS NOT NULL 
-                  GROUP BY dst_domains
-                  ORDER BY dst_domains desc
-                  limit 25;
+                    SELECT array_unique(src_ip_addr) AS src_ip_addrs, array_unique(dst_ip_addr) AS dst_ip_addrs,
+                    dst_domains[1], array_unique(dst_json->'Valid from') AS valid_from ,
+                    array_unique(dst_json->'Valid until') AS Valid_until, array_unique(dst_json->'issuerdn') AS issuerdn
+                    FROM nb.flows01,
+                    unnest(dst_app_json) AS dst_json 
+                    WHERE timestamp >= now() - interval '24h' AND service='HTTPS' AND dst_domains IS NOT NULL AND dst_json->'issuerdn' IS NOT NULL
+                    AND length(dst_domains[1])<20 AND dst_domains[1] ~* '^[a-zA-Z].*'
+                    GROUP BY dst_domains, timestamp ORDER BY timestamp DESC
+                    limit 10;
                   """
 
 
@@ -166,25 +170,25 @@ if __name__ == "__main__":
     i = 0
     domains = []
     for https_record in https_json["results"]:
-            domain = https_record['dst_domains'][0]
+            print(https_record)
+            hostname = https_record['dst_domains']
             ip = https_record['dst_ip_addrs'][0]
             i+=1
-            domains.append(domain)
+            domains.append(hostname)
             DNS_QUERY=""" SELECT array_unique(src_json->'questions') AS questions,
             array_unique(dst_json->'answers') AS answers 
             FROM nb.flows01,
             unnest(src_app_json) AS src_json,
             unnest(dst_app_json) AS dst_json, 
             jsonb_array_elements(src_json->'questions') AS question 
-            WHERE service='DNS' AND (question->>'rrname')::text='{0}';
-            """.format(domain)
+            WHERE timestamp >= now() - interval '24h' AND service='DNS' AND (question->>'rrname')::text='{0}';
+            """.format(hostname)
 
             GEOIP_QUERY ="""
             SELECT ip_addrs, country_code, latitude, longitude, city, geoip_asn.company,geoip_asn.code 
             FROM ti.geoip_asn
             JOIN ti.asns ON geoip_asn.code=asns.code
             WHERE '{0}'::inet << ip_addrs
-            LIMIT 10;
             """.format(ip)
 
             cur.execute(GEOIP_QUERY)
@@ -195,13 +199,22 @@ if __name__ == "__main__":
             dns_result = cur.fetchall()
             dns = createQueryResultObject("dns_result", dns_result, "dns")
 
-            res = resolver(domain, https_record, geo["results"][0], dns["results"][0])
-            r_data = res.get_combined()
+            #FIXME geo and/or dns can be null at certain times
+            #print("[GEO] " , geo)
+            #print("[DNS]" , dns)
+            try:
+                res = resolver(hostname, https_record, geo["results"][0], dns["results"][0])
+                r_data = res.get_combined()
+                if(r_data is None):
+                    print("[Error] result of type None received")
+                    continue
+            except:
+                print("[ERROR] an error occured while loading data for hostname {0}".format(hostname))
 
             res.output_stdout(r_data)
-    #with open("domains.txt", "w") as f:
-        #for domain in domains:
-            #f.write(domain+'\n')
+    with open("domains.txt", "w") as f:
+        for hostname in domains:
+            f.write(hostname+'\n')
     cur.close()
     conn.close()
     
