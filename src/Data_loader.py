@@ -25,7 +25,6 @@ from datetime import datetime
 
 # Import custom modules
 import Database
-import SSL_loader
 
 
 #######################
@@ -206,18 +205,19 @@ class Base_parser:
                     #print(answer)
                     i = 0
                     for dns_type in dns_types:
-                        if(dns_types[i] == answer["rrtype"]):
-                            if(dns_records[dns_types[i]] is None):
-                                if(dns_types[i] == 'SOA'):
-                                    dns_records[dns_types[i]] = "{0} {1} {2} {3} {4} {5} {6}".format(answer["mname"],
+                        if("rrtype" in answer):
+                            if(dns_types[i] == answer["rrtype"]):
+                                if(dns_records[dns_types[i]] is None):
+                                    if(dns_types[i] == 'SOA'):
+                                        dns_records[dns_types[i]] = "{0} {1} {2} {3} {4} {5} {6}".format(answer["mname"],
                                                                                                  answer["rname"],
                                                                                                  answer["serial"],
                                                                                                  answer["refresh"],
                                                                                                  answer["retry"],
                                                                                                  answer["expire"],
                                                                                                  answer["minimum"])
-                                elif("rdata" in answer): 
-                                    dns_records[dns_types[i]] = answer["rdata"]
+                                    elif("rdata" in answer): 
+                                        dns_records[dns_types[i]] = answer["rdata"]
                         i=i+1
 
                     #print(type + " " + self.hostname + " --> " + str(result[0]))
