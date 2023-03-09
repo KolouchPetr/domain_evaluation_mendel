@@ -153,31 +153,6 @@ class SSL_loader:
 
 
 
-def insert_ssl_data(ssl_data, domain_name):
-	print("For: ", domain_name)
-
-	d = Database.Database('domains')
-
-	domain_collection = d.return_collection("goodDomains")
-
-	orig = domain_collection.find_one({'name': domain_name})
-
-	if domain_name != orig['name']:
-		print("Domain name mismatch, exiting")
-		exit(1)
-
-	print(orig['dns_data'])
-	data = {
-		'name': domain_name,
-		'dns_data': orig['dns_data'],
-		'geo_data': orig['geo_data'],
-		'whois_data': orig['whois_data'],
-		'ssl_data': ssl_data
-	}
-	#print(data)
-	domain_collection.replace_one({'name': domain_name},data, upsert=True)
-
-
 
 # 
 def discover_ssl(name, timeout: int):
