@@ -25,11 +25,13 @@ from datetime import datetime
 
 # Import custom modules
 import Database
+import SSL_loader
 
 
 #######################
 #### resolver setup ###
 #######################
+ip_auth_token="6b3b15bcf578ec"  # seznam token
 forbiddenIps = {"0.0.0.0", "127.0.0.1", "255.255.255.255"} # nonsense IPs, feel free to add more
 nonvalidTypes = {"csv"}  
 validTxtTypes = {"plain", "octet-stream", "html"} 
@@ -136,18 +138,19 @@ class Data_loader:
         return hostnames
 
 class Base_parser:
-    def __init__(self, hostname, resolver_timeout):
+    def __init__(self, hostname, resolver_timeout, ip, useAggressive=False):
         print("[Info]: Starting resolver for:", hostname)
         self.timeout = resolver_timeout
         self.hostname = hostname
-        self.dns = None
-        self.ip = None
+        self.dns_data = None
+        self.ip = ip
         self.geo_data = None
         self.whois_data = None
         self.ssl_data = None
+        self.useAggressive = useAggressive
 
     def get_dns(self):
-        return self.dns
+        return self.dns_data
 
     def get_ip(self):
         return self.ip
@@ -186,6 +189,27 @@ class Base_parser:
             print("[Info]: Resolver can't load all whois data")
             return False
 
+    def fetch_missing_info(self, type_t, result):
+        if not self.useAggressive:
+            return
+
+        missing_data = [key for key, value in result.items() if value is None]
+        print(f"{type_t} has missing attributes: {missing_data}")
+
+        fetch_function = {
+            "dns": self.fetch_dns_data,
+            "geo": self.fetch_geo_info,
+            "ssl": self.fetch_ssl_data,
+        }.get(type_t)
+
+        if fetch_function:
+            fetched = fetch_function()
+            data_dict = getattr(self, f"{type_t}_data")
+            for missing in missing_data:
+                if fetched[missing] is not None:
+                    data_dict[missing] = fetched[missing]
+                    print(f"[info] missing {missing} was fetched using aggressive mode, fetched value: {fetched[missing]}")
+
 
     def load_dns_data(self, result):
         dns_types = ['A', 'AAAA', 'CNAME', 'SOA', 'NS', 'MX', 'TXT']
@@ -221,7 +245,8 @@ class Base_parser:
                         i=i+1
 
                     #print(type + " " + self.hostname + " --> " + str(result[0]))
-        self.dns = dns_records
+        self.dns_data = dns_records
+        self.fetch_missing_info('dns', dns_records)
 
     def load_geo_info(self, result):
         geo_data = {}
@@ -232,7 +257,9 @@ class Base_parser:
                 geo_data[keys[i]] = result[keys[i]]
             else:
                 geo_data[keys[i]] = None
+
         self.geo_data = geo_data
+        self.fetch_missing_info('geo', geo_data)
 
     def load_ssl_data(self, result):
         is_ssl = result['ssl_issuer'] is not None
@@ -244,6 +271,54 @@ class Base_parser:
                         }
              }
         self.ssl_data = ssl_data
+        self.fetch_missing_info('ssl', ssl_data)
+
+    def fetch_dns_data(self):
+        types = ['A', 'AAAA', 'CNAME', 'SOA', 'NS', 'MX', 'TXT']
+        dns_records = {}
+        i = 0
+        for type in types:
+            result = None;
+            try:
+                result = self.dns_resolver.resolve(self.hostname, type)
+            except Exception as e:
+                dns_records[types[i]] = None
+                i=i+1
+                continue
+
+            dns_records[types[i]] = str(result[0])
+            i=i+1
+
+        return dns_records
+
+    def fetch_geo_info(self):
+        if self.ip is None:
+            try:
+                self.ip = self.ip_from_host()[self.hostname][0]
+            except:
+                print("[Info]: Cant resolve hostname to IP")
+            return False
+        
+        geo_data = {}
+        keys = ['country', 'region' ,'city' ,'loc' ,'org']
+        url =  "https://ipinfo.io/" + str(self.ip) + "/?token=" + ip_auth_token
+        raw_json = None
+        try:
+            raw_json = requests.get(url).json()
+        except:
+            self.geo_data = None
+            return
+        for i in range(len(keys)):
+            try:
+                geo_data[keys[i]] = raw_json[keys[i]]
+            except:
+                geo_data[keys[i]] = None
+
+        return geo_data
+
+    def fetch_ssl_data(self):
+        return SSL_loader.discover_ssl(self.hostname, self.timeout)
+
 
     def ip_from_host(self):
         hostname = self.hostname

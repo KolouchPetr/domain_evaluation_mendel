@@ -41,8 +41,8 @@ class resolver:
 
     """
 
-    def __init__(self, domain_name, ssl_data, geo_data, dns_data) -> None:
-        self.cls = clasifier(ssl_data, geo_data, dns_data)
+    def __init__(self, domain_name, ssl_data, geo_data, dns_data, ip, useAggressive) -> None:
+        self.cls = clasifier(ssl_data, geo_data, dns_data, ip, useAggressive)
         self.domain_name = domain_name
 
     # Get combined prediction, details can be found in REDME or documentation
@@ -125,16 +125,19 @@ class resolver:
 
 if __name__ == "__main__":
 
-    #parser = argparse.ArgumentParser(prog='Mendel URL Analyser', description='Mendel implementation of domain name analysis tool')
+    parser = argparse.ArgumentParser(prog='Mendel URL Analyser', description='Mendel implementation of domain name analysis tool')
+    parser.add_argument('--aggressive', action='store_true', help='Fetch missing information from 3rd party APIs')
 
-    #parser.add_argument('')
+    args = parser.parse_args()
+    useAggressive = args.aggressive
 
     conn = psycopg2.connect(env['MENDEL_CONNECTION_STRING'])
 
     cur = conn.cursor()
 
     #DNS_QUERY = "SELECT src_json->'questions', dst_json->'answers' FROM nb.flows01, unnest(src_app_json) AS src_json, unnest   (dst_app_json) AS dst_json WHERE service='DNS' LIMIT 100;"
-    
+   
+   #TODO update HTTP query
     HTTP_QUERY = """
                     SELECT array_unique(src_ip_addr) AS src_ip_addr, array_unique(dst_ip_addr),dst_domains 
                     FROM nb.flows01 
@@ -170,7 +173,6 @@ if __name__ == "__main__":
     i = 0
     domains = []
     for https_record in https_json["results"]:
-            print(https_record)
             hostname = https_record['dst_domains']
             ip = https_record['dst_ip_addrs'][0]
             i+=1
@@ -202,16 +204,16 @@ if __name__ == "__main__":
             #FIXME geo and/or dns can be null at certain times
             #print("[GEO] " , geo)
             #print("[DNS]" , dns)
-            try:
-                res = resolver(hostname, https_record, geo["results"][0], dns["results"][0])
-                r_data = res.get_combined()
-                if(r_data is None):
-                    print("[Error] result of type None received")
-                    continue
-            except:
-                print("[ERROR] an error occured while loading data for hostname {0}".format(hostname))
+            
+            res = resolver(hostname, https_record, geo["results"][0], dns["results"][0], ip, useAggressive)
+            r_data = res.get_combined()
+            if(r_data is None):
+                print("[Error] result of type None received")
+                continue
+            else:
+                res.output_stdout(r_data)
+            
 
-            res.output_stdout(r_data)
     with open("domains.txt", "w") as f:
         for hostname in domains:
             f.write(hostname+'\n')

@@ -66,7 +66,7 @@ class clasifier:
                 for details see readme
 
         """     
-        def __init__(self, ssl_data, geo_data, dns_data) -> None:
+        def __init__(self, ssl_data, geo_data, dns_data, ip, useAggressive) -> None:
                 load_dotenv()
                 self.models = getenv("MODELS_FOLDER")
                 self.resolver_timeout = int(getenv("RESOLVER_TIMEOUT"))
@@ -78,6 +78,8 @@ class clasifier:
                 self.ssl_data = ssl_data
                 self.geo_data = geo_data
                 self.dns_data = dns_data
+                self.ip = ip
+                self.useAggressive = useAggressive
 
                 # model for paralel data resolving
                 self.paralel = getenv("PARALEL")
@@ -93,7 +95,7 @@ class clasifier:
                 if not self.reset_data(hostname):
                         return self.data
 
-                domain = Base_parser(hostname, self.resolver_timeout)
+                domain = Base_parser(hostname, self.resolver_timeout, self.ip, useAggressive=self.useAggressive)
 
 
                 ### Paralel or sequestial data-load ###
