@@ -79,63 +79,6 @@ def prepare_sm_event_query(timestamp, sensor, sid, src_ip, src_mac, dst_port, de
 #  1 on error
 #
 
-#def load_dns_data(result):
-#    dns_types = ['A', 'AAAA', 'CNAME', 'SOA', 'NS', 'MX', 'TXT']
-#    dns_records = {
-#            'A':None,
-#            'AAAA':None,
-#            'CNAME':None,
-#            'SOA':None,
-#            'NS':None,
-#            'MX':None,
-#            'TXT':None
-#            }
-#    if(result is not None and result["answers"] is not None):
-#        for answers in result["answers"]:
-#            for answer in answers:
-#                    #print("in answer: ")
-#                    #print(answer)
-#                i = 0
-#                for dns_type in dns_types:
-#                    if(dns_types[i] == answer["rrtype"]):
-#                        if(dns_records[dns_types[i]] is None):
-#                            if(dns_types[i] == 'SOA'):
-#                                dns_records[dns_types[i]] = "{0} {1} {2} {3} {4} {5} {6}".format(answer["mname"],
-#                                                                                                 answer["rname"],
-#                                                                                                 answer["serial"],
-#                                                                                                 answer["refresh"],
-#                                                                                                 answer["retry"],
-#                                                                                                 answer["expire"],
-#                                                                                                 answer["minimum"])
-#                            elif("rdata" in answer): 
-#                                dns_records[dns_types[i]] = answer["rdata"]
-#                    i=i+1
-#
-#                    #print(type + " " + self.hostname + " --> " + str(result[0]))
-#    return dns_records
-#
-#def load_geo_info(result):
-# geo_data = {}
-# #TODO region missing
-# keys = ['country', 'region' ,'city' ,'loc' ,'org']
-# for i in range(len(keys)):
-#    if(keys[i] in result):
-#     geo_data[keys[i]] = result[keys[i]]
-#    else:
-#        geo_data[keys[i]] = None
-# return geo_data
-#
-#def load_ssl_data( result):
-# is_ssl = result['ssl_issuer'] is not None
-# ssl_data = {'is_ssl': is_ssl,
-#             'ssl_data': {
-#             'issuer': result['ssl_issuer'] if is_ssl else None,
-#             'end_date': datetime.strptime(result['ssl_valid_from'][0], "%Y-%m-%dT%H:%M:%S") if is_ssl else None,
-#             'start_date': datetime.strptime(result['ssl_valid_until'][0], "%Y-%m-%dT%H:%M:%S") if is_ssl else None
-#                        }
-#             }
-# return ssl_data
-
 def get_connection_string(ident='DBConnDB'):
     ret = None
     with open('/etc/ti.conf', "r") as f:
@@ -156,6 +99,10 @@ def createQueryResultObject(filename, result, type_t):
      resultCount = len(result)
      for row in result:
          if(type_t == "https"):
+             #if(row[6] is not None):
+             #   dst_ip_rep.append(str(row[6]))
+             #else:
+             #   dst_ip_rep.append("None")
              ssl_issuer = None
              if(row[5] != None):
                  ssl_issuer = str(row[5]).split(', ')
@@ -166,7 +113,7 @@ def createQueryResultObject(filename, result, type_t):
              result_dict = {
                      "src_ip_addrs":row[0],
                      "dst_ip_addrs":row[1],
-                     "dst_domains":row[2],
+                     "dst_domain":row[2],
                      "ssl_valid_from":row[3],
                      "ssl_valid_until":row[4],
                      "ssl_issuer":ssl_issuer
@@ -175,7 +122,7 @@ def createQueryResultObject(filename, result, type_t):
              result_dict = {
                      "src_ip_addrs":row[0],
                      "dst_ip_addrs":row[1],
-                     "dst_domains":row[2],
+                     "dst_domain":row[2],
                      }
          elif(type_t == "geoip"):
              result_dict = {
