@@ -72,8 +72,12 @@ class clasifier:
                 self.resolver_timeout = int(getenv("RESOLVER_TIMEOUT"))
                 self.hostname = None
                 self.data = None
+                self.data_fetched = None
+                self.data_combined = None
                 self.loaded_data = False
                 self.accuracy = 0
+                self.accuracy_fetched = 0
+                self.accuracy_combined = 0
 
                 self.ssl_data = ssl_data
                 self.geo_data = geo_data
@@ -113,20 +117,41 @@ class clasifier:
                         domain.load_ssl_data(self.ssl_data)
 
                 # Get loaded data #
-                dns_data = domain.get_dns()
-                geo_data = domain.get_geo_data()
+                dns_data, dns_data_fetched, dns_data_combined = domain.get_dns()
+                geo_data, geo_data_fetched, geo_data_combined = domain.get_geo_data()
                 whois_data = domain.get_whois_data()
-                ssl_data = domain.get_ssl_data()
+                ssl_data, ssl_data_fetched, ssl_data_combined = domain.get_ssl_data()
 
                 self.accuracy = np.around((self.is_empty(dns_data) + self.is_empty(geo_data) + self.is_empty(whois_data) + self.is_empty(ssl_data))/4, 3)
+                self.accuracy_fetched = np.around((self.is_empty(dns_data_fetched) + self.is_empty(geo_data_fetched) +
+                                                    self.is_empty(whois_data) + self.is_empty(ssl_data_fetched))/4, 3)
+                self.accuracy_combined = np.around((self.is_empty(dns_data_combined) + self.is_empty(geo_data_combined) +
+                                                    self.is_empty(whois_data) + self.is_empty(ssl_data_combined))/4, 3)
+
 
                 print("[Info]: All data collected, data loss: ", np.around((1-self.accuracy)*100, 2), " %")
+                print("[Info]: All data collected, fetched data loss: ", np.around((1-self.accuracy_fetched)*100, 2), " %")
+                print("[Info]: All data collected, combined data loss: ", np.around((1-self.accuracy_combined)*100, 2), " %")
 
                 in_data = {"name": hostname, "dns_data": dns_data, "geo_data": geo_data, "whois_data": whois_data, "ssl_data": ssl_data}
                 print("[Info] in data: {0}".format(in_data))
-                
+               
+                in_data_fetched = {"name": hostname, "dns_data": dns_data_fetched, "geo_data": geo_data_fetched,
+                                   "whois_data": whois_data, "ssl_data": ssl_data_fetched}
+
+                print("[Info] in data_fetched: {0}".format(in_data_fetched))
+
+                in_data_combined = {"name": hostname, "dns_data": dns_data_combined, "geo_data": geo_data_combined,
+                                    "whois_data": whois_data, "ssl_data": ssl_data_combined}
+
+                print("[Info] in data_combined: {0}".format(in_data_combined))
+
+
+
                 lex = Lexical_analysis()
                 self.data = lex.process_data(in_data)
+                self.data_fetched = lex.process_data(in_data_fetched)
+                self.data_combined = lex.process_data(in_data_combined)
 
                 self.loaded_data = True
         
@@ -156,7 +181,13 @@ class clasifier:
                 np_input = np.array([self.data], dtype=np.float32)
                 prediction = svm_model.predict(np_input)
 
-                return float(prediction)
+                np_input = np.array([self.data_fetched], dtype=np.float32)
+                prediction_fetched = svm_model.predict(np_input)
+
+                np_input = np.array([self.data_combined], dtype=np.float32)
+                prediction_combined = svm_model.predict(np_input)
+
+                return float(prediction), float(prediction_fetched), float(prediction_combined)
 
         # Prediction with data-based model
         def get_data(self, hostname: str) -> float:
@@ -165,8 +196,15 @@ class clasifier:
 
                 torch_input = torch.tensor(self.data)
                 prediction = data_model(torch_input)
+                
+                torch_input_fetched = torch.tensor(self.data_fetched)
+                prediction_fetched = data_model(torch_input_fetched)
 
-                return float(prediction)
+                torch_input_combined = torch.tensor(self.data_combined)
+                prediction_combined = data_model(torch_input_combined)
+
+
+                return float(prediction), float(prediction_fetched), float(prediction_combined)
 
         # prediction with mixed model
         def get_mixed(self, hostname: str):
@@ -176,8 +214,8 @@ class clasifier:
 
 
                 # get predictions of all three models, value needs to be inverted for calculation
-                data = self.get_data(hostname)
-                svm = self.get_svm(hostname)
+                data, data_fetched, data_combined = self.get_data(hostname)
+                svm, svm_fetched, svm_combined = self.get_svm(hostname)
                 lexical = self.get_lexical(hostname)
                 
 
@@ -186,6 +224,8 @@ class clasifier:
                 # manual -> based on user input
                 if auto_weight:
                         prediction = float(data*self.accuracy + lexical*(1-self.accuracy))
+                        prediction_fetched = float(data*self.accuracy_fetched + lexical*(1-self.accuracy_fetched))
+                        prediction_combined = float(data*self.accuracy_combined + lexical*(1-self.accuracy_combined))
                 else:
                         prediction = float((data_weight*data + lexical_weight*lexical) / (data_weight+lexical_weight))
 
@@ -212,12 +252,51 @@ class clasifier:
                 elif prediction < 0:
                         prediction = 0.00
 
+                if svm_fetched > (1 - grey_zone_width):
+                        if prediction_fetched > 0.5:
+                                self.accuracy_fetched = (self.accuracy_fetched+1)/2
+                                prediction_fetched = prediction_fetched*(2/3)+1/3
+                        else:
+                                prediction_fetched+=svm_weight
+                                self.accuracy_fetched = (self.accuracy_fetched+0.5)/2
+
+                elif svm_fetched < (0.5 - grey_zone_width):
+                        if prediction_fetched < 0.5:
+                                self.accuracy_fetched = (self.accuracy_fetched+1)/2
+                        else:
+                                prediction_fetched-=svm_weight
+                                self.accuracy_fetched = (self.accuracy_fetched+0.5)/2
+
+                # Correction of bad results of prediction #
+                if prediction_fetched > 1:
+                        prediction_combined = 1.00
+                elif prediction_fetched < 0:
+                        prediction_combined = 0.00
 
 
+                if svm_combined > (1 - grey_zone_width):
+                        if prediction_combined > 0.5:
+                                self.accuracy_combined = (self.accuracy_combined+1)/2
+                                prediction_combined = prediction_combined*(2/3)+1/3
+                        else:
+                                prediction_combined+=svm_weight
+                                self.accuracy_combined = (self.accuracy_combined+0.5)/2
+
+                elif svm_combined < (0.5 - grey_zone_width):
+                        if prediction_combined < 0.5:
+                                self.accuracy_combined = (self.accuracy_combined+1)/2
+                        else:
+                                prediction_combined-=svm_weight
+                                self.accuracy_combined = (self.accuracy_combined+0.5)/2
+
+                # Correction of bad results of prediction #
+                if prediction_combined > 1:
+                        prediction_combined = 1.00
+                elif prediction_combined < 0:
+                        prediction_combined = 0.00
+
                 
-                    
-                
-                return prediction, self.accuracy
+                return prediction, self.accuracy, prediction_fetched, self.accuracy_fetched, prediction_combined, self.accuracy_combined
 
         # Loads domain data, usefull if you already have database with fetched data
         # Param data: JSON object representing domain data, for exact form see README

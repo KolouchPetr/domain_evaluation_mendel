@@ -21,17 +21,18 @@ import os
 import time
 import csv
 import whois
+from dotenv import dotenv_values 
 from datetime import datetime
 
 # Import custom modules
 import Database
 import SSL_loader
 
-
+env = dotenv_values(".env.mendel")
 #######################
 #### resolver setup ###
 #######################
-ip_auth_token="6b3b15bcf578ec"  # seznam token
+ip_auth_token=env["IPINFO_TOKEN"]  # seznam token
 forbiddenIps = {"0.0.0.0", "127.0.0.1", "255.255.255.255"} # nonsense IPs, feel free to add more
 nonvalidTypes = {"csv"}  
 validTxtTypes = {"plain", "octet-stream", "html"} 
@@ -147,19 +148,25 @@ class Base_parser:
         self.geo_data = None
         self.whois_data = None
         self.ssl_data = None
+        self.dns_data_fetched = None
+        self.geo_data_fetched = None
+        self.ssl_data_fetched = None
+        self.dns_data_combined = None
+        self.geo_data_combined = None
+        self.ssl_data_combined = None
         self.useAggressive = useAggressive
 
     def get_dns(self):
-        return self.dns_data
+        return self.dns_data, self.dns_data_fetched, self.dns_data_combined
 
     def get_ip(self):
         return self.ip
 
     def get_geo_data(self):
-        return self.geo_data
+        return self.geo_data, self.geo_data_fetched, self.geo_data_combined
 
     def get_ssl_data(self):
-        return self.ssl_data
+        return self.ssl_data, self.ssl_data_fetched, self.ssl_data_combined
 
     def get_whois_data(self):
         return self.whois_data
@@ -204,7 +211,7 @@ class Base_parser:
 
         if fetch_function:
             fetched = fetch_function()
-            data_dict = getattr(self, f"{type_t}_data")
+            data_dict = getattr(self, f"{type_t}_data_combined")
             for missing in missing_data:
                 if fetched[missing] is not None:
                     data_dict[missing] = fetched[missing]
@@ -233,32 +240,34 @@ class Base_parser:
                             if(dns_types[i] == answer["rrtype"]):
                                 if(dns_records[dns_types[i]] is None):
                                     if(dns_types[i] == 'SOA'):
-                                        dns_records[dns_types[i]] = "{0} {1} {2} {3} {4} {5} {6}".format(answer["mname"],
-                                                                                                 answer["rname"],
-                                                                                                 answer["serial"],
-                                                                                                 answer["refresh"],
-                                                                                                 answer["retry"],
-                                                                                                 answer["expire"],
-                                                                                                 answer["minimum"])
+                                        dns_records[dns_types[i]] = "{0} {1} {2} {3} {4} {5} {6}".format(answer["mname"] if "mname" in answer else None,
+                                                                                                 answer["rname"] if "rname" in answer else None,
+                                                                                                 answer["serial"] if "serial" in answer else None,
+                                                                                                 answer["refresh"] if "refresh" in answer else None,
+                                                                                                 answer["retry"] if "retry" in answer else None,
+                                                                                                 answer["expire"] if "expire" in answer else None,
+                                                                                                 answer["minimum"] if "minimum" in answer else None)
                                     elif("rdata" in answer): 
                                         dns_records[dns_types[i]] = answer["rdata"]
                         i=i+1
 
                     #print(type + " " + self.hostname + " --> " + str(result[0]))
-        self.dns_data = dns_records
+        self.dns_data = dns_records.copy()
+        self.dns_data_combined = dns_records.copy()
         self.fetch_missing_info('dns', dns_records)
 
     def load_geo_info(self, result):
         geo_data = {}
         #TODO region missing
         keys = ['country', 'region' ,'city' ,'loc' ,'org']
-        for i in range(len(keys)):
-            if(keys[i] in result):
-                geo_data[keys[i]] = result[keys[i]]
+        for key in keys:
+            if(key in result):
+                geo_data[key] = result[key]
             else:
-                geo_data[keys[i]] = None
+                geo_data[key] = None
 
-        self.geo_data = geo_data
+        self.geo_data = geo_data.copy()
+        self.geo_data_combined = geo_data.copy()
         self.fetch_missing_info('geo', geo_data)
 
     def load_ssl_data(self, result):
@@ -270,25 +279,24 @@ class Base_parser:
                     'start_date': datetime.strptime(result['ssl_valid_from'][0], "%Y-%m-%dT%H:%M:%S") if is_ssl else None
                         }
              }
-        self.ssl_data = ssl_data
+        self.ssl_data = ssl_data.copy()
+        self.ssl_data_combined = ssl_data.copy()
         self.fetch_missing_info('ssl', ssl_data)
 
     def fetch_dns_data(self):
         types = ['A', 'AAAA', 'CNAME', 'SOA', 'NS', 'MX', 'TXT']
         dns_records = {}
-        i = 0
-        for type in types:
+        for type_t in types:
             result = None;
             try:
-                result = self.dns_resolver.resolve(self.hostname, type)
+                result = self.dns_resolver.resolve(self.hostname, type_t)
             except Exception as e:
-                dns_records[types[i]] = None
-                i=i+1
+                dns_records[type_t] = None
                 continue
 
-            dns_records[types[i]] = str(result[0])
-            i=i+1
+            dns_records[type_t] = str(result[0])
 
+        self.dns_data_fetched = dns_records
         return dns_records
 
     def fetch_geo_info(self):
@@ -314,10 +322,13 @@ class Base_parser:
             except:
                 geo_data[keys[i]] = None
 
+        self.geo_data_fetched = geo_data
         return geo_data
 
     def fetch_ssl_data(self):
-        return SSL_loader.discover_ssl(self.hostname, self.timeout)
+        ssl_data = SSL_loader.discover_ssl(self.hostname, self.timeout)
+        self.ssl_data_fetched = ssl_data
+        return ssl_data
 
 
     def ip_from_host(self):
