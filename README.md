@@ -2,27 +2,27 @@
 ## implementation for Mendel by GREYCORTEX
 ### Based on https://github.com/poli-cz/domain_evaluation
 
-# Instalation
+## Instalation
 - clone repository
 - pip3 install -r requirements.txt
 - create .env.mendel file with *MENDEL_CONNECTION_STRING* and *IPINFO_TOKEN* inside /src
 
-# Usage
+## Usage
 - execute the script as python3 init.py [--aggressive] [--json] [--protocol PROTOCOL]
 
-## Flags
+### Flags
 - **--aggressive** fetch missing information from 3rd party apis
 - **--json** store results into json files inside /tmp/ddos7
 - **--protocol** choose whether to fetch HTTP/HTTPS data from database (HTTPS is default)
 
-# Results
+## Results
 
-## Files
+### Files
 In case you use the --json flag, there will be a file with all the results *resultsFormated.json*
 and a result with combined result < 0.20 and accuracy >= 0.94 in *badResultsFornated.json*
 both in /tmp/ddos7
 
-## Structure
+### Structure
 ``` json
 "results": [
         {
