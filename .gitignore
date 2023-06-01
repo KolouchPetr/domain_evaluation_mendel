@@ -3,3 +3,8 @@
 __pycache__/
 *.txt
 .env.mendel
+*.tgz
+*.prof
+*.lprof
+src/resultsFormated.json
+src/badResultsFormated.json
