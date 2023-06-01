@@ -1,8 +1,3 @@
-import psycopg2
-from datetime import datetime
-import json
-
-
 #TODO rewrite this bash function to python
 
 ##
@@ -93,50 +88,62 @@ def get_connection_string(ident='DBConnDB'):
         ret = p.stdout.read().strip().decode()
     return ret
 
-def createQueryResultObject(filename, result, type_t):
-     returnJson = { "results":[]}
-     resultCounter = 0
-     resultCount = len(result)
-     for row in result:
-         if(type_t == "https"):
-             #if(row[6] is not None):
-             #   dst_ip_rep.append(str(row[6]))
-             #else:
-             #   dst_ip_rep.append("None")
+def createQueryResultObject(result, type_t):
+    if(type_t == "https"):
+            for row in result:
              ssl_issuer = None
-             if(row[5] != None):
-                 ssl_issuer = str(row[5]).split(', ')
-                 for substr in ssl_issuer:
+             valid_from = None
+             valid_until = None
+             if(row[2] != None):
+                 dst_info = str(row[2]).split(', ')
+                 for substr in dst_info:
                      if(substr.startswith("O=")):
                          ssl_issuer=substr
                          break;
-             result_dict = {
-                     "src_ip_addrs":row[0],
-                     "dst_ip_addrs":row[1],
-                     "dst_domain":row[2],
-                     "ssl_valid_from":row[3],
-                     "ssl_valid_until":row[4],
+
+                 valid_from = row[2].get('Valid from')
+                 valid_until = row[2].get('Valid until')
+
+             https_result_dict = {
+                     "src_ip_addrs":row[3][0],
+                     "dst_ip_addrs":row[4][0],
+                     "dst_domain":row[0],
+                     "ssl_valid_from":valid_from,
+                     "ssl_valid_until":valid_until,
                      "ssl_issuer":ssl_issuer
              }
-         elif(type_t == "http"):
-             result_dict = {
-                     "src_ip_addrs":row[0],
-                     "dst_ip_addrs":row[1],
-                     "dst_domain":row[2],
+             dns_result_dict = {
+                     "questions":row[5],
+                     "answers":row[6]
                      }
-         elif(type_t == "geoip"):
-             result_dict = {
-                     "ip_addrs":row[0],
+             yield https_result_dict, dns_result_dict
+    elif(type_t == "http"):
+        for row in result:
+            http_result_dict = {
+                "src_ip_addrs":row[1][0],
+                "dst_ip_addrs":row[2][0],
+                "dst_domain":row[0],
+                "ssl_valid_from":None,
+                "ssl_valid_until":None,
+                "ssl_issuer": None
+                }
+            dns_result_dict = {
+                "questions":row[3],
+                "answers":row[4]
+                }
+            yield http_result_dict, dns_result_dict, 
+
+
+def createGeoObject(result):
+    if(len(result) < 1):
+        return {}
+    row = result[0]
+    result_dict = {
+    "ip_addrs":row[0],
                      "country":row[1],
                      "loc":str(row[2])+", "+str(row[3]),
                      "city":row[4],
                      "org":"AS"+str(row[6])+" "+str(row[5])
                      }
-         elif(type_t == "dns"):
-             result_dict = {
-                     "questions":row[0],
-                     "answers":row[1]
-                     }
-         resultCounter +=1
-         returnJson["results"].append(result_dict)
-     return returnJson
+    return result_dict
+

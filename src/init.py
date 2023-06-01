@@ -21,14 +21,14 @@ import Parser
 from Parser import Net
 from Preprocessor import preprocess
 import psycopg2
+from psycopg2.extras import RealDictCursor
 from dotenv import dotenv_values
 
 # Load custom modules
 from Core import clasifier
 from mendelDB import *
 from json_output import *
-from datetime import datetime, timedelta
-import time
+from queries import *
 
 SECONDS_IN_DAY = 86400
 SECONDS_IN_WEEK = SECONDS_IN_DAY * 7
@@ -173,182 +173,116 @@ if __name__ == "__main__":
     parser.add_argument(
         "--json", action="store_true", help="Store results into JSON files"
     )
+    parser.add_argument("--protocol", type=str, default='https', help='specify the protocol (http/https)')
 
     args = parser.parse_args()
     useAggressive = args.aggressive
     toJSON = args.json
+    protocol = args.protocol.lower()
 
     conn = psycopg2.connect(env["MENDEL_CONNECTION_STRING"])
 
     cur = conn.cursor()
 
-    # DNS_QUERY = "SELECT src_json->'questions', dst_json->'answers' FROM nb.flows01, unnest(src_app_json) AS src_json, unnest   (dst_app_json) AS dst_json WHERE service='DNS' LIMIT 100;"
-
-    # TODO update HTTP query
-    HTTP_QUERY = """
-                    SELECT array_unique(src_ip_addr) AS src_ip_addr, array_unique(dst_ip_addr),dst_domains 
-                    FROM nb.flows30 
-                    WHERE service='HTTP'AND dst_domains IS NOT NULL
-                    GROUP BY dst_domains
-                    LIMIT 100;
-                """
-    #    HTTPS_QUERY = """
-    #                    SELECT array_unique(src_ip_addr) AS src_ip_addrs, array_unique(dst_ip_addr) AS dst_ip_addrs,
-    #                    dst_domains[1], array_unique(dst_json->'Valid from') AS valid_from ,
-    #                    array_unique(dst_json->'Valid until') AS Valid_until, array_unique(dst_json->'issuerdn') AS issuerdn,
-    #                    dst_ip_rep
-    #                    FROM nb.flows30
-    #                    TABLESAMPLE BERNOULLI (10),
-    #                    unnest(dst_app_json) AS dst_json
-    #                    WHERE timestamp >= now() - interval '24h' AND service='HTTPS' AND dst_domains IS NOT NULL AND dst_sn_addr IS NULL
-    #                    GROUP BY dst_domains, timestamp, dst_ip_rep ORDER BY random(), timestamp DESC
-    #                    LIMIT 25;
-    #                  """
-
-    today = datetime.today()
-    dateStart = (today - timedelta(days=2)).strftime("%Y-%m-%d")
-    tomorrow = (today + timedelta(days=1)).strftime("%Y-%m-%d")
-    currentTimestamp = int(str(time.time()).split(".")[0])
-    HTTPS_QUERY = """
-                    SELECT * FROM (
-                    SELECT array_unique(src_ip_addr) AS src_ip_addrs, array_unique(dst_ip_addr) AS dst_ip_addrs, dst_domain, array_unique(dst_json->'Valid from') AS valid_from ,
-                    array_unique(dst_json->'Valid until') AS Valid_until, array_unique(dst_json->'issuerdn') AS issuerdn
-                    FROM nb.flows30, unnest(dst_domains) dst_domain, unnest(dst_app_json) AS dst_json
-                    WHERE timestamp >= '{0}' AND timestamp < '{1}' AND service='HTTPS' AND dst_domains IS NOT NULL AND dst_sn_addr IS NULL AND src_sn_addr IS NOT NULL
-                    AND dst_ip_rep IS NULL
-                    group by dst_domain
-                    HAVING split_part(dst_domain,'.',-2) NOT IN 
-                    ('google','amazonaws','microsoft','windows','apple','facebook','googlevideo','live','icloud','googleapis','cloudfront','akadns','skype','googleusercontent','doubleclick')
-                    LIMIT 15
-                    ) x
-                    order by array_length(src_ip_addrs,1) desc
-                """.format(
-        dateStart, tomorrow
-    )
-
-    print("[INFO] dateStart: {0} tomorrow: {1}".format(dateStart, tomorrow))
-
+    print("[INFO] dateStart: {0} dateEnd: {1}".format(dateStart, dateEnd))
     print("[INFO] creating ddos-7 folder in temp")
+
     if not os.path.exists("/tmp/ddos-7"):
         os.mkdir("/tmp/ddos-7", mode=0o777)
 
-    print("[INFO] fetching HTTPS data")
-    cur.execute(HTTPS_QUERY)
-    https_result = cur.fetchall()
-    print(f"https result: {https_result}")
-    https_json = createQueryResultObject("https_result", https_result, "https")
-    i = 0
-    domains = []
+    print(f"[INFO] executing QUERY for {protocol}")
+    if(protocol=='http'):
+        cur.execute(HTTP_QUERY)
+    else:
+        protocol = 'https'
+        cur.execute(HTTPS_QUERY)
+    while True:
+        print(f"[INFO] fetching {protocol} QUERY")
+        protocol_result = cur.fetchmany(5000)
+        if not protocol_result:
+            print("no more results to fetch, exiting...")
+            break
+        domains = []
+        results = []
+        badResults = []
+        results_fetched = []
+        badResults_fetched = []
+        results_combined = []
+        badResults_combined = []
 
-    results = []
-    badResults = []
+        cache = load_cache(CACHE_FILE)
 
-    results_fetched = []
-    badResults_fetched = []
+        for index, record in enumerate(createQueryResultObject(protocol_result, protocol)):
+            protocol_record, dns = record
 
-    results_combined = []
-    badResults_combined = []
+            hostname = protocol_record["dst_domain"]
 
-    cache = load_cache(CACHE_FILE)
-
-    for https_record in https_json["results"]:
-        hostname = https_record["dst_domain"]
-
-        if hostname not in cache:
-            cache[hostname] = currentTimestamp
-        elif cache["hostname"] + (SECONDS_IN_WEEK) >= currentTimestamp:
-            print(
-                "[INFO] hostname {0} found in cache, skipping evaluation".format(
-                    hostname
+            if hostname not in cache:
+                cache[hostname] = currentTimestamp
+            elif cache[hostname] + (SECONDS_IN_WEEK) >= currentTimestamp:
+                print(
+                    "[INFO] hostname {0} found in cache, skipping evaluation".format(
+                        hostname
+                    )
                 )
+                continue
+
+            ip = protocol_record["dst_ip_addrs"]
+            domains.append(hostname)
+
+            GEOIP_QUERY = getGEOIP_QUERY(ip)
+           
+            print("[INFO] fetching geo data for " + hostname + " with ip: " + ip)
+            cur.execute(GEOIP_QUERY)
+            geoip_result = cur.fetchall()
+            geo = createGeoObject(geoip_result)
+
+
+            print(f"[INFO] the values are: hostname: {hostname}\t record{protocol_record}\t geo: {geo}\t dns: {dns}")
+            try:
+                res = resolver(
+                    hostname,
+                    protocol_record,
+                    geo,
+                    dns,
+                    ip,
+                    useAggressive,
+                )
+            except IndexError:
+                print("data error at index")
+            print("[INFO] getting predictions")
+            r_data, r_data_fetched, r_data_combined = res.get_combined()
+            if r_data is None or r_data_fetched is None or r_data_combined is None:
+                print("[Error] result of type None received")
+                continue
+            else:
+                if float(r_data["combined"]) <= 0.20 and float(r_data["accuracy"]) >= 0.94:
+                    badResults.append(r_data)
+                results.append(r_data)
+
+                if (
+                    float(r_data_fetched["combined"]) <= 0.20
+                    and float(r_data_fetched["accuracy"]) >= 0.94
+                ):
+                    badResults_fetched.append(r_data_fetched)
+                results_fetched.append(r_data_fetched)
+
+                if (
+                    float(r_data_combined["combined"]) <= 0.20
+                    and float(r_data_combined["accuracy"]) >= 0.94
+                ):
+                    badResults_combined.append(r_data_combined)
+                results_combined.append(r_data_combined)
+        print_cache_into_file(CACHE_FILE, cache)
+        if toJSON == True:
+            print_results_to_json(
+                "resultsFormated.json", results, results_fetched, results_combined
             )
-            continue
-
-        ip = https_record["dst_ip_addrs"][0]
-        i += 1
-        domains.append(hostname)
-        DNS_QUERY = """ SELECT array_unique(src_json->'questions') AS questions,
-            array_unique(dst_json->'answers') AS answers 
-            FROM nb.flows30,
-            unnest(src_app_json) AS src_json,
-            unnest(dst_app_json) AS dst_json, 
-            jsonb_array_elements(src_json->'questions') AS question 
-            WHERE timestamp >= '{0}' AND timestamp < '{1}' AND service='DNS' AND (question->>'rrname')::text='{2}';
-            """.format(
-            dateStart, tomorrow, hostname
-        )
-
-        GEOIP_QUERY = """
-            SELECT ip_addrs, country_code, latitude, longitude, city, geoip_asn.company,geoip_asn.code 
-            FROM ti.geoip_asn
-            JOIN ti.asns ON geoip_asn.code=asns.code
-            WHERE '{0}'::inet << ip_addrs
-            LIMIT 1
-            """.format(
-            ip
-        )
-
-        print("[INFO] fetching geo data for " + hostname + " with ip: " + ip)
-        cur.execute(GEOIP_QUERY)
-        geoip_result = cur.fetchall()
-        geo = createQueryResultObject("geoip_result", geoip_result, "geoip")
-
-        print("[INFO] fetching dns data for " + hostname)
-        cur.execute(DNS_QUERY)
-        dns_result = cur.fetchall()
-        dns = createQueryResultObject("dns_result", dns_result, "dns")
-
-        # FIXME geo and/or dns can be null at certain times
-        # print("[GEO] " , geo)
-        # print("[DNS]" , dns)
-
-        res = resolver(
-            hostname,
-            https_record,
-            geo["results"][0],
-            dns["results"][0],
-            ip,
-            useAggressive,
-        )
-        print("[INFO] getting predictions")
-        r_data, r_data_fetched, r_data_combined = res.get_combined()
-        if r_data is None or r_data_fetched is None or r_data_combined is None:
-            print("[Error] result of type None received")
-            continue
-        else:
-            if float(r_data["combined"]) <= 0.20 and float(r_data["accuracy"]) >= 0.94:
-                badResults.append(r_data)
-            results.append(r_data)
-
-            if (
-                float(r_data_fetched["combined"]) <= 0.20
-                and float(r_data_fetched["accuracy"]) >= 0.94
-            ):
-                badResults_fetched.append(r_data_fetched)
-            results_fetched.append(r_data_fetched)
-
-            if (
-                float(r_data_combined["combined"]) <= 0.20
-                and float(r_data_combined["accuracy"]) >= 0.94
-            ):
-                badResults_combined.append(r_data_combined)
-            results_combined.append(r_data_combined)
-            # res.output_stdout(r_data)
-
-    print_cache_into_file(CACHE_FILE, cache)
-    if toJSON == True:
-        print_results_to_json(
-            "resultsFormated.json", results, results_fetched, results_combined
-        )
-        print_results_to_json(
-            "badResultsFormated.json",
-            badResults,
-            badResults_fetched,
-            badResults_combined,
-        )
-
-    # with open("domains.txt", "w") as f:
-    #    for hostname in domains:
-    #        f.write(hostname+'\n')
+            print_results_to_json(
+                "badResultsFormated.json",
+                badResults,
+                badResults_fetched,
+                badResults_combined,
+            )
     cur.close()
     conn.close()

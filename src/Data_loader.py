@@ -230,26 +230,30 @@ class Base_parser:
                 'TXT':None
                 }
         if(result is not None and result["answers"] is not None):
-            for answers in result["answers"]:
-                for answer in answers:
-                    #print("in answer: ")
-                    #print(answer)
-                    i = 0
-                    for dns_type in dns_types:
-                        if("rrtype" in answer):
-                            if(dns_types[i] == answer["rrtype"]):
-                                if(dns_records[dns_types[i]] is None):
-                                    if(dns_types[i] == 'SOA'):
-                                        dns_records[dns_types[i]] = "{0} {1} {2} {3} {4} {5} {6}".format(answer["mname"] if "mname" in answer else None,
+            if result.get("answers") is not None and result.get("answers").get("answers") is not None and len(result.get("answers").get("answers")) > 0:
+                answer = result.get("answers").get("answers")[0]
+            else:
+                return;
+            if answer["rrtype"] == "SOA":
+                dns_records["SOA"] = "{0} {1} {2} {3} {4} {5} {6}".format(answer["mname"] if "mname" in answer else None,
                                                                                                  answer["rname"] if "rname" in answer else None,
                                                                                                  answer["serial"] if "serial" in answer else None,
                                                                                                  answer["refresh"] if "refresh" in answer else None,
                                                                                                  answer["retry"] if "retry" in answer else None,
                                                                                                  answer["expire"] if "expire" in answer else None,
                                                                                                  answer["minimum"] if "minimum" in answer else None)
-                                    elif("rdata" in answer): 
-                                        dns_records[dns_types[i]] = answer["rdata"]
-                        i=i+1
+            elif answer["rrtype"] == "A":
+                dns_records["A"] = answer["rdata"] if "rdata" in answer else None
+            elif answer["rrtype"] == "AAAA":
+                dns_records["AAAA"] = answer["rdata"]if "rdata" in answer else None
+            elif answer["rrtype"] == "CNAME":
+                dns_records["CNAME"] = answer["rdata"]if "rdata" in answer else None
+            elif answer["rrtype"] == "NS":
+                dns_records["NS"] = answer["rdata"]if "rdata" in answer else None
+            elif answer["rrtype"] == "MX":
+                dns_records["MX"] = answer["rdata"]if "rdata" in answer else None
+            elif answer["rrtype"] == "TXT":
+                dns_records["TXT"] = answer["rdata"]if "rdata" in answer else None
 
                     #print(type + " " + self.hostname + " --> " + str(result[0]))
         self.dns_data = dns_records.copy()
@@ -275,8 +279,8 @@ class Base_parser:
         ssl_data = {'is_ssl': is_ssl,
                     'ssl_data': {
                     'issuer': result['ssl_issuer'] if is_ssl else None,
-                    'end_date': datetime.strptime(result['ssl_valid_until'][0], "%Y-%m-%dT%H:%M:%S") if is_ssl else None,
-                    'start_date': datetime.strptime(result['ssl_valid_from'][0], "%Y-%m-%dT%H:%M:%S") if is_ssl else None
+                    'end_date': datetime.strptime(result['ssl_valid_until'], "%Y-%m-%dT%H:%M:%S") if is_ssl else None,
+                    'start_date': datetime.strptime(result['ssl_valid_from'], "%Y-%m-%dT%H:%M:%S") if is_ssl else None
                         }
              }
         self.ssl_data = ssl_data.copy()
