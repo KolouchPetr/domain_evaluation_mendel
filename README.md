@@ -9,7 +9,7 @@
 
 # Usage
 - execute the script as python3 init.py [--aggressive] [--json] [--protocol PROTOCOL]
-- 
+
 ## Flags
 - **--aggressive** fetch missing information from 3rd party apis
 - **--json** store results into json files inside /tmp/ddos7
