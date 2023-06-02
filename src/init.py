@@ -1,7 +1,7 @@
 """ File: init.py
-    Author: Jan Polisensky
+    Author: Jan Polisensky, Petr Kolouch
     ----
-    Example usage of classifier core module
+    Main file for encapsulation functionality for Mendel implementation of domain evaluation
 """
 
 
@@ -39,12 +39,8 @@ CACHE_FILE = "/tmp/ddos-7/cache.json"
 class resolver:
     """
     Class for controling core module
-    ...
-    Attributes
-    ----------
-    domain_name : str
-        string containing domain name
 
+    :param domain_name: string containing domain name
     """
 
     def __init__(
@@ -161,6 +157,8 @@ class resolver:
 
 if __name__ == "__main__":
     print("[INFO] script starting")
+    
+    #Argument parsing
     parser = argparse.ArgumentParser(
         prog="Mendel URL Analyser",
         description="Mendel implementation of domain name analysis tool",
@@ -176,18 +174,24 @@ if __name__ == "__main__":
     parser.add_argument("--protocol", type=str, default='https', help='specify the protocol (http/https)')
 
     args = parser.parse_args()
+
+    # Fetch data from 3rd party apis if true
     useAggressive = args.aggressive
+    # Store results into a JSON file
     toJSON = args.json
+    # Protocol to evaluate (HTTP/HTTPS) 
     protocol = args.protocol.lower()
 
+    #Database connection
     conn = psycopg2.connect(env["MENDEL_CONNECTION_STRING"])
-
     cur = conn.cursor()
 
     print("[INFO] dateStart: {0} dateEnd: {1}".format(dateStart, dateEnd))
-    print("[INFO] creating ddos-7 folder in temp")
+    print("[INFO] accessing ddos-7 folder in /tmp")
 
+    # Create 
     if not os.path.exists("/tmp/ddos-7"):
+        print("[INFO] creating ddos-7 folder in temp")
         os.mkdir("/tmp/ddos-7", mode=0o777)
 
     print(f"[INFO] executing QUERY for {protocol}")
@@ -196,6 +200,8 @@ if __name__ == "__main__":
     else:
         protocol = 'https'
         cur.execute(HTTPS_QUERY)
+
+    # While there are results being fetched
     while True:
         print(f"[INFO] fetching {protocol} QUERY")
         protocol_result = cur.fetchmany(5000)
@@ -203,16 +209,23 @@ if __name__ == "__main__":
             print("no more results to fetch, exiting...")
             break
         domains = []
+    
+        # All model results
         results = []
         badResults = []
+
+        # Results based on information fetched from 3rd party apis only
         results_fetched = []
         badResults_fetched = []
+
+        # Results based on Mendel database enhanced by 3rd party apis
         results_combined = []
         badResults_combined = []
 
         cache = load_cache(CACHE_FILE)
 
-        for index, record in enumerate(createQueryResultObject(protocol_result, protocol)):
+        # Get parsed data for the model
+        for record in createQueryResultObject(protocol_result, protocol):
             protocol_record, dns = record
 
             hostname = protocol_record["dst_domain"]
@@ -236,7 +249,6 @@ if __name__ == "__main__":
             cur.execute(GEOIP_QUERY)
             geoip_result = cur.fetchall()
             geo = createGeoObject(geoip_result)
-
 
             print(f"[INFO] the values are: hostname: {hostname}\t record{protocol_record}\t geo: {geo}\t dns: {dns}")
             try:
@@ -273,6 +285,7 @@ if __name__ == "__main__":
                 ):
                     badResults_combined.append(r_data_combined)
                 results_combined.append(r_data_combined)
+                
         print_cache_into_file(CACHE_FILE, cache)
         if toJSON == True:
             print_results_to_json(

@@ -1,3 +1,8 @@
+""" File: queries.py
+    Author: Petr Kolouch
+    ----
+    File for storing Mendel database queries
+"""
 import time
 from datetime import datetime, timedelta
 
@@ -48,6 +53,11 @@ HTTPS_QUERY = """
             ;
                 """.format(dateStart, dateEnd)
 
+"""
+getGEOIP_QUERY receive formated GEOIP query if a certain IP address
+
+:param ip: An IP address to format the query with
+"""
 def getGEOIP_QUERY(ip):
     GEOIP_QUERY = """
     SELECT ip_addrs, country_code, latitude, longitude, city, geoip_asn.company,geoip_asn.code 

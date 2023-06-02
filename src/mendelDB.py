@@ -1,5 +1,10 @@
-#TODO rewrite this bash function to python
+""" File: mendelDB.py
+    Author: Petr Kolouch, Michal Novotny
+    ----
+    Main file for encapsulation functionality for Mendel implementation of domain evaluation
+"""
 
+#TODO rewrite this bash function to python
 ##
 # From mendel.bash:
 # Prepare insert query for SM event
@@ -43,6 +48,11 @@
 #}
 #
 
+"""
+convert_to_null_or_add_sql_quotes adds sql quotes to a param
+
+:param param: string to add the sql quotes to
+"""
 def convert_to_null_or_add_sql_quotes(param):
     if(param):
         return "'"+param+"'"
@@ -60,19 +70,19 @@ def prepare_sm_event_query(timestamp, sensor, sid, src_ip, src_mac, dst_port, de
 
 
 
-##
-# Report Asset Discovery Tool event to the database
-#
-# @param connstr connection string to connect to database
-# @param ip_address IP address to report event for
-# @param event event SID
-# @param msg message to add to the event
-# @param service service or port to add
-#
-# @returns
-#  0 on success
-#  1 on error
-#
+"""
+ Report Asset Discovery Tool event to the database
+
+ :param connstr: connection string to connect to database
+ :param ip_address: IP address to report event for
+ :param event: event SID
+ :param msg: message to add to the event
+ :param service: service or port to add
+
+ :returns
+  0 on success
+  1 on error
+"""
 
 def get_connection_string(ident='DBConnDB'):
     ret = None
@@ -88,8 +98,15 @@ def get_connection_string(ident='DBConnDB'):
         ret = p.stdout.read().strip().decode()
     return ret
 
-def createQueryResultObject(result, type_t):
-    if(type_t == "https"):
+"""
+createQueryResultObject takes fetched data from the Mendel database and parses
+it into an object, that the AI models can work with
+
+:param result: database query result
+:param protocol: protocol that was fetched (either HTTP/HTTPS)
+"""
+def createQueryResultObject(result, protocol):
+    if(protocol == "https"):
             for row in result:
              ssl_issuer = None
              valid_from = None
@@ -117,7 +134,7 @@ def createQueryResultObject(result, type_t):
                      "answers":row[6]
                      }
              yield https_result_dict, dns_result_dict
-    elif(type_t == "http"):
+    elif(protocol == "http"):
         for row in result:
             http_result_dict = {
                 "src_ip_addrs":row[1][0],
@@ -134,6 +151,11 @@ def createQueryResultObject(result, type_t):
             yield http_result_dict, dns_result_dict, 
 
 
+"""
+createGeoObject creates an object the AI models can work with to GEOIP data
+
+:param result: database query result
+"""
 def createGeoObject(result):
     if(len(result) < 1):
         return {}
