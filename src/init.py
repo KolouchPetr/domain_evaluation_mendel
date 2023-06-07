@@ -8,12 +8,12 @@
 # Import basic modules and libraries
 import json
 import os
-import sys
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 import numpy as np
 import argparse
 
+import re
 import Database
 from Data_loader import Base_parser
 import SSL_loader
@@ -34,6 +34,9 @@ SECONDS_IN_DAY = 86400
 SECONDS_IN_WEEK = SECONDS_IN_DAY * 7
 env = dotenv_values(".env.mendel")
 CACHE_FILE = "/tmp/ddos-7/cache.json"
+PROTO_REGEX = re.compile("^https?:\/\/(www.)?", re.IGNORECASE)
+PATH_REGEX = re.compile("/.*$", re.IGNORECASE)
+WWW_REGEX = re.compile("^www.", re.IGNORECASE)
 
 
 class resolver:
@@ -229,7 +232,10 @@ if __name__ == "__main__":
             protocol_record, dns = record
 
             hostname = protocol_record["dst_domain"]
-
+            hostname = re.sub(PROTO_REGEX, "", hostname)
+            hostname = re.sub(PATH_REGEX, "", hostname)
+            hostname = re.sub(WWW_REGEX, "", hostname)
+            
             if hostname not in cache:
                 cache[hostname] = currentTimestamp
             elif cache[hostname] + (SECONDS_IN_WEEK) >= currentTimestamp:
