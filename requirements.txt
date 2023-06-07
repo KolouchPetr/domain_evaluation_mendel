@@ -10,6 +10,5 @@ tensorflow
 torch
 python-dotenv
 pyOpenSSL
-sklearn
 psycopg2
 scikit-learn==1.0.2
