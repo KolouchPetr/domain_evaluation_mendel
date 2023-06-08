@@ -219,13 +219,16 @@ class Base_parser:
 
         if fetch_function:
             fetched = fetch_function()
-            print(f"[INFO] fetched: {fetched}")
             data_dict = getattr(self, f"{type_t}_data_combined")
-            for missing in missing_data:
-                print(f"[INFO] missing is: {missing}")
-                if fetched[missing] is not None:
-                    data_dict[missing] = fetched[missing]
-                    print(f"[info] missing {missing} was fetched using aggressive mode, fetched value: {fetched[missing]}")
+            if(type_t == "ssl"):
+                if data_dict['is_ssl'] == False:
+                    self.ssl_data_combined = fetched
+            else:
+                for missing in missing_data:
+                    print(f"[INFO] missing is: {missing}")
+                    if fetched[missing] is not None:
+                        data_dict[missing] = fetched[missing]
+                        print(f"[info] missing {missing} was fetched using aggressive mode, fetched value: {fetched[missing]}")
 
 
     def load_dns_data(self, result):
@@ -299,7 +302,7 @@ class Base_parser:
 
     def load_ssl_data(self, result):
         if result is None:
-            ssl_data = {'is_ssl': None,
+            ssl_data = {'is_ssl': False,
                     'ssl_data': {
                     'issuer': None,
                     'end_date': None,
