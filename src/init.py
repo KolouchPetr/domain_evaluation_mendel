@@ -186,7 +186,7 @@ if __name__ == "__main__":
         testing_url = args.test
         res = resolver(testing_url, None, None, None, None, args.aggressive)
         test_results, fetched_results, combined_results = res.get_combined()
-        print(f"the test result is: {test_results}\n fetched: {fetched_results}\n combined: {combined_results}")
+        print(f"{test_results}\n fetched: {fetched_results}\n combined: {combined_results}")
         exit(0)
 
 
@@ -219,7 +219,7 @@ if __name__ == "__main__":
     # While there are results being fetched
     while True:
         print(f"[INFO] fetching {protocol} QUERY")
-        protocol_result = cur.fetchmany(5000)
+        protocol_result = cur.fetchmany(1000)
         if not protocol_result:
             print("no more results to fetch, exiting...")
             break
