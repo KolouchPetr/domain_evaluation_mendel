@@ -174,9 +174,21 @@ if __name__ == "__main__":
     parser.add_argument(
         "--json", action="store_true", help="Store results into JSON files"
     )
+
+    parser.add_argument("--test", type=str, help="Testing only")
     parser.add_argument("--protocol", type=str, default='https', help='specify the protocol (http/https)')
 
     args = parser.parse_args()
+
+    testing = args.test;
+    if testing is not None:
+        print("[INFO] testing mode enabled")
+        testing_url = args.test
+        res = resolver(testing_url, None, None, None, None, args.aggressive)
+        test_results, fetched_results, combined_results = res.get_combined()
+        print(f"the test result is: {test_results}\n fetched: {fetched_results}\n combined: {combined_results}")
+        exit(0)
+
 
     # Fetch data from 3rd party apis if true
     useAggressive = args.aggressive

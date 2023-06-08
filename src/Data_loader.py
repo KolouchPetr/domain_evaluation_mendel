@@ -23,6 +23,7 @@ import csv
 import whois
 from dotenv import dotenv_values 
 from datetime import datetime
+import dns.resolver
 
 # Import custom modules
 import Database
@@ -156,6 +157,13 @@ class Base_parser:
         self.ssl_data_combined = None
         self.useAggressive = useAggressive
 
+        self.dns = None
+
+        self.dns_resolver = dns.resolver.Resolver()
+        self.dns_resolver.nameservers = ["8.8.8.8", "8.8.4.4"]
+        self.dns_resolver.timeout = resolver_timeout
+        self.dns_resolver.lifetime = resolver_timeout
+
     def get_dns(self):
         return self.dns_data, self.dns_data_fetched, self.dns_data_combined
 
@@ -197,7 +205,7 @@ class Base_parser:
             return False
 
     def fetch_missing_info(self, type_t, result):
-        if not self.useAggressive:
+        if self.useAggressive is None:
             return
 
         missing_data = [key for key, value in result.items() if value is None]
@@ -211,8 +219,10 @@ class Base_parser:
 
         if fetch_function:
             fetched = fetch_function()
+            print(f"[INFO] fetched: {fetched}")
             data_dict = getattr(self, f"{type_t}_data_combined")
             for missing in missing_data:
+                print(f"[INFO] missing is: {missing}")
                 if fetched[missing] is not None:
                     data_dict[missing] = fetched[missing]
                     print(f"[info] missing {missing} was fetched using aggressive mode, fetched value: {fetched[missing]}")
@@ -261,7 +271,19 @@ class Base_parser:
         self.fetch_missing_info('dns', dns_records)
 
     def load_geo_info(self, result):
-        geo_data = {}
+        print(f"[INFO] result is: {result}")
+
+        geo_data = {
+                'country':None,
+                'region':None,
+                'city':None,
+                'loc':None,
+                'org':None,
+                }
+        if result is None:
+            self.geo_data = geo_data.copy()
+            self.geo_data_combined = geo_data.copy()
+            return self.fetch_missing_info('geo', geo_data)
         #TODO region missing
         keys = ['country', 'region' ,'city' ,'loc' ,'org']
         for key in keys:
@@ -272,9 +294,24 @@ class Base_parser:
 
         self.geo_data = geo_data.copy()
         self.geo_data_combined = geo_data.copy()
+        print("[INFO] calling fetch_missing_info with geo")
         self.fetch_missing_info('geo', geo_data)
 
     def load_ssl_data(self, result):
+        if result is None:
+            ssl_data = {'is_ssl': None,
+                    'ssl_data': {
+                    'issuer': None,
+                    'end_date': None,
+                    'start_date': None
+                        }
+             }
+
+            self.ssl_data = ssl_data.copy()
+            self.ssl_data_combined = ssl_data.copy()
+            return self.fetch_missing_info('ssl', ssl_data)
+
+
         is_ssl = result['ssl_issuer'] is not None
         ssl_data = {'is_ssl': is_ssl,
                     'ssl_data': {
@@ -304,12 +341,9 @@ class Base_parser:
         return dns_records
 
     def fetch_geo_info(self):
+        print("[INFO] fetch_geo_info is being called")
         if self.ip is None:
-            try:
-                self.ip = self.ip_from_host()[self.hostname][0]
-            except:
-                print("[Info]: Cant resolve hostname to IP")
-            return False
+            self.ip = self.ip_from_host()[self.hostname][0]
         
         geo_data = {}
         keys = ['country', 'region' ,'city' ,'loc' ,'org']
@@ -327,6 +361,7 @@ class Base_parser:
                 geo_data[keys[i]] = None
 
         self.geo_data_fetched = geo_data
+        print(f"[INFO] setting geo data to {geo_data}")
         return geo_data
 
     def fetch_ssl_data(self):

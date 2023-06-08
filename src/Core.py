@@ -122,6 +122,8 @@ class clasifier:
                 whois_data = domain.get_whois_data()
                 ssl_data, ssl_data_fetched, ssl_data_combined = domain.get_ssl_data()
 
+                print(f"[INFO] geo_data: {geo_data}, {geo_data_combined}, {geo_data_combined}")
+
                 self.accuracy = np.around((self.is_empty(dns_data) + self.is_empty(geo_data) + self.is_empty(whois_data) + self.is_empty(ssl_data))/4, 3)
                 self.accuracy_fetched = np.around((self.is_empty(dns_data_fetched) + self.is_empty(geo_data_fetched) +
                                                     self.is_empty(whois_data) + self.is_empty(ssl_data_fetched))/4, 3)
@@ -134,17 +136,17 @@ class clasifier:
                 print("[Info]: All data collected, combined data loss: ", np.around((1-self.accuracy_combined)*100, 2), " %")
 
                 in_data = {"name": hostname, "dns_data": dns_data, "geo_data": geo_data, "whois_data": whois_data, "ssl_data": ssl_data}
-                print("[Info] in data: {0}".format(in_data))
+                print("[Info] in data: {0}\n".format(in_data))
                
                 in_data_fetched = {"name": hostname, "dns_data": dns_data_fetched, "geo_data": geo_data_fetched,
                                    "whois_data": whois_data, "ssl_data": ssl_data_fetched}
 
-                print("[Info] in data_fetched: {0}".format(in_data_fetched))
+                print("[Info] in data_fetched: {0}\n".format(in_data_fetched))
 
                 in_data_combined = {"name": hostname, "dns_data": dns_data_combined, "geo_data": geo_data_combined,
                                     "whois_data": whois_data, "ssl_data": ssl_data_combined}
 
-                print("[Info] in data_combined: {0}".format(in_data_combined))
+                print("[Info] in data_combined: {0}\n".format(in_data_combined))
 
 
 
