@@ -345,7 +345,9 @@ class Base_parser:
     def fetch_geo_info(self):
         print("[INFO] fetch_geo_info is being called")
         if self.ip is None:
-            self.ip = self.ip_from_host()[self.hostname][0]
+            ip = self.ip_from_host()[self.hostname]
+            self.ip = ip[0] if ip else None
+            print(f"[INFO] ip is set to: {self.ip}")
         
         geo_data = {}
         keys = ['country', 'region' ,'city' ,'loc' ,'org']
@@ -388,7 +390,7 @@ class Base_parser:
             return domainsIps
 
         except Exception as e:
-            print(answer)
+            # print(answer)
             print(ips)
   
             print(str(e))

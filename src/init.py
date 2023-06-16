@@ -23,6 +23,7 @@ from Preprocessor import preprocess
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from dotenv import dotenv_values
+import tldextract
 
 # Load custom modules
 from Core import clasifier
@@ -34,9 +35,10 @@ SECONDS_IN_DAY = 86400
 SECONDS_IN_WEEK = SECONDS_IN_DAY * 7
 env = dotenv_values(".env.mendel")
 CACHE_FILE = "/tmp/ddos-7/cache.json"
-PROTO_REGEX = re.compile("^https?:\/\/(www.)?", re.IGNORECASE)
-PATH_REGEX = re.compile("/.*$", re.IGNORECASE)
-WWW_REGEX = re.compile("^www.", re.IGNORECASE)
+MAIN_DOMAIN_CACHE_FILE = "/tmp/ddos-7/mainDomainCache.json"
+PROTO_REGEX = re.compile(r"^https?:\/\/(www.)?", re.IGNORECASE)
+PATH_REGEX = re.compile(r"/.*$", re.IGNORECASE)
+WWW_REGEX = re.compile(r"^www.", re.IGNORECASE)
 
 
 class resolver:
@@ -78,8 +80,8 @@ class resolver:
         combined_fetched = np.around(combined_fetched, 3)
         accuracy_fetched = np.around(accuracy_fetched, 3)
 
-        combined = np.around(combined_combined, 3)
-        accuracy = np.around(accuracy_combined, 3)
+        combined_combined = np.around(combined_combined, 3)
+        accuracy_combined = np.around(accuracy_combined, 3)
 
         svm = np.around(svm, 3)
         svm_fetched = np.around(svm_fetched, 3)
@@ -158,6 +160,11 @@ class resolver:
         print(json.dumps(data, indent=4))
 
 
+def getMainDomain(domain):
+    extracted = tldextract.extract(domain)
+    return f"{extracted.domain}.{extracted.suffix}"
+
+
 if __name__ == "__main__":
     print("[INFO] script starting")
     
@@ -176,17 +183,39 @@ if __name__ == "__main__":
     )
 
     parser.add_argument("--test", type=str, help="Testing only")
+    parser.add_argument("--top", action="store_true", help="get results for 200 most popular websites")
     parser.add_argument("--protocol", type=str, default='https', help='specify the protocol (http/https)')
 
     args = parser.parse_args()
 
     testing = args.test;
+
     if testing is not None:
         print("[INFO] testing mode enabled")
         testing_url = args.test
         res = resolver(testing_url, None, None, None, None, args.aggressive)
         test_results, fetched_results, combined_results = res.get_combined()
         print(f"{test_results}\n fetched: {fetched_results}\n combined: {combined_results}")
+        exit(0)
+
+    top = args.top
+    if top:
+
+        results = []
+        with open("./data/topWebsitesParsed.csv", "r") as f:
+            domains = f.readlines()
+            for i, domain in enumerate(domains):
+                if i == 100:
+                    break
+                domain = domain.strip()
+                print(f"evaluating domain: {domain}")
+                res = resolver(domain, None, None, None, None, args.aggressive)
+                top, top_fetched, top_combined = res.get_combined()
+                results.append(top_fetched)
+        if args.json:
+            print_results_to_json(
+            "topDomainResults.json", results, [], [], topList=True
+            )
         exit(0)
 
 
@@ -217,12 +246,9 @@ if __name__ == "__main__":
         cur.execute(HTTPS_QUERY)
 
     # While there are results being fetched
-    while True:
         print(f"[INFO] fetching {protocol} QUERY")
-        protocol_result = cur.fetchmany(1000)
-        if not protocol_result:
-            print("no more results to fetch, exiting...")
-            break
+        protocol_result = cur.fetchall()
+        cur.close()
         domains = []
     
         # All model results
@@ -238,6 +264,7 @@ if __name__ == "__main__":
         badResults_combined = []
 
         cache = load_cache(CACHE_FILE)
+        mainDomainCache = load_cache(MAIN_DOMAIN_CACHE_FILE)
 
         # Get parsed data for the model
         for record in createQueryResultObject(protocol_result, protocol):
@@ -247,10 +274,27 @@ if __name__ == "__main__":
             hostname = re.sub(PROTO_REGEX, "", hostname)
             hostname = re.sub(PATH_REGEX, "", hostname)
             hostname = re.sub(WWW_REGEX, "", hostname)
+
+            mainDomain = getMainDomain(hostname)
+
+            if mainDomain != hostname:
+                if (mainDomain not in mainDomainCache) or (mainDomainCache[mainDomain] + (SECONDS_IN_WEEK) <= currentTimestamp):
+                    mainDomainCache[mainDomain] = currentTimestamp
+
+                    res = resolver(mainDomain, None, None, None, None, useAggressive)
+                    test_results, fetched_results, combined_results = res.get_combined()
+                    #fixme - decompose to lists
+                    if toJSON == True:
+                        print_results_to_json(
+                        "mainDomainResults.json", [test_results], [fetched_results], [combined_results]
+                        )
+                else:
+                    print(f"[INFO] main domain {mainDomain} found in cache, skipping evaluation")
+                    continue
             
-            if hostname not in cache:
+            if (hostname not in cache) or (cache[hostname] + (SECONDS_IN_WEEK) <= currentTimestamp):
                 cache[hostname] = currentTimestamp
-            elif cache[hostname] + (SECONDS_IN_WEEK) >= currentTimestamp:
+            else:
                 print(
                     "[INFO] hostname {0} found in cache, skipping evaluation".format(
                         hostname
@@ -262,11 +306,15 @@ if __name__ == "__main__":
             domains.append(hostname)
 
             GEOIP_QUERY = getGEOIP_QUERY(ip)
+            geoConn = psycopg2.connect(env["MENDEL_CONNECTION_STRING"])
+            geoCur = geoConn.cursor()
            
             print("[INFO] fetching geo data for " + hostname + " with ip: " + ip)
-            cur.execute(GEOIP_QUERY)
-            geoip_result = cur.fetchall()
+            geoCur.execute(GEOIP_QUERY)
+            geoip_result = geoCur.fetchall()
             geo = createGeoObject(geoip_result)
+            geoCur.close()
+            geoConn.close()
 
             print(f"[INFO] the values are: hostname: {hostname}\t record{protocol_record}\t geo: {geo}\t dns: {dns}")
             try:
@@ -280,6 +328,7 @@ if __name__ == "__main__":
                 )
             except IndexError:
                 print("data error at index")
+                continue
             print("[INFO] getting predictions")
             r_data, r_data_fetched, r_data_combined = res.get_combined()
             if r_data is None or r_data_fetched is None or r_data_combined is None:
@@ -305,6 +354,8 @@ if __name__ == "__main__":
                 results_combined.append(r_data_combined)
                 
         print_cache_into_file(CACHE_FILE, cache)
+        print_cache_into_file(MAIN_DOMAIN_CACHE_FILE, mainDomainCache)
+
         if toJSON == True:
             print_results_to_json(
                 "resultsFormated.json", results, results_fetched, results_combined
@@ -315,5 +366,4 @@ if __name__ == "__main__":
                 badResults_fetched,
                 badResults_combined,
             )
-    cur.close()
     conn.close()

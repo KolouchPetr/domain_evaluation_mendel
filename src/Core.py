@@ -226,8 +226,8 @@ class clasifier:
                 # manual -> based on user input
                 if auto_weight:
                         prediction = float(data*self.accuracy + lexical*(1-self.accuracy))
-                        prediction_fetched = float(data*self.accuracy_fetched + lexical*(1-self.accuracy_fetched))
-                        prediction_combined = float(data*self.accuracy_combined + lexical*(1-self.accuracy_combined))
+                        prediction_fetched = float(data_fetched*self.accuracy_fetched + lexical*(1-self.accuracy_fetched))
+                        prediction_combined = float(data_combined*self.accuracy_combined + lexical*(1-self.accuracy_combined))
                 else:
                         prediction = float((data_weight*data + lexical_weight*lexical) / (data_weight+lexical_weight))
 
@@ -271,9 +271,9 @@ class clasifier:
 
                 # Correction of bad results of prediction #
                 if prediction_fetched > 1:
-                        prediction_combined = 1.00
+                        prediction_fetched = 1.00
                 elif prediction_fetched < 0:
-                        prediction_combined = 0.00
+                        prediction_fetched = 0.00
 
 
                 if svm_combined > (1 - grey_zone_width):

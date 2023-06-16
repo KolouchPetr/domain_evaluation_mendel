@@ -6,10 +6,24 @@
 import time
 from datetime import datetime, timedelta
 
-today = datetime.utcnow()
-dateStart = (today - timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S+00')
-dateEnd = today.strftime('%Y-%m-%d %H:%M:%S+00')
 currentTimestamp = int(str(time.time()).split(".")[0])
+
+try:
+    with open('timestamp.txt', 'r') as f:
+        previous_timestamp = int(f.read())
+except FileNotFoundError:
+        previous_timestamp = int(datetime(2023, 6, 13).timestamp())
+
+current_timestamp = previous_timestamp - 24*60*60
+
+previous_date = datetime.fromtimestamp(previous_timestamp)
+current_date = datetime.fromtimestamp(current_timestamp)
+
+dateStart = (current_date - timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S+00')
+dateEnd = current_date.strftime('%Y-%m-%d %H:%M:%S+00')
+
+with open('timestamp.txt', 'w') as f:
+    f.write(str(current_timestamp))
 
 HTTP_QUERY = """
             WITH http_data AS materialized (
